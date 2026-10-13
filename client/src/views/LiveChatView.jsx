@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { 
-  Search, 
-  Send, 
-  Paperclip, 
-  Bot, 
-  User, 
-  CheckCheck, 
-  CheckCircle, 
-  CornerUpLeft, 
-  FileText, 
+import {
+  Search,
+  Send,
+  Paperclip,
+  Bot,
+  User,
+  CheckCheck,
+  CheckCircle,
+  CornerUpLeft,
+  FileText,
   Zap,
   MoreVertical,
   X,
@@ -66,6 +66,7 @@ import { desktopNotifications } from '../services/desktopNotifications';
 import WhatsAppAudioPlayer from '../components/chat/WhatsAppAudioPlayer';
 import ChatMessageItem from '../components/chat/ChatMessageItem';
 
+
 export const TelegramIcon = ({ size = 14, color = 'currentColor', style = {} }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
     <path d="m22 2-7 20-4-9-9-4Z" />
@@ -75,15 +76,15 @@ export const TelegramIcon = ({ size = 14, color = 'currentColor', style = {} }) 
 
 export const InstagramIcon = ({ size = 14, color = 'currentColor', style = {} }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-    <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
-    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
-    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
   </svg>
 );
 
 export const WhatsAppIcon = ({ size = 14, color = 'currentColor', style = {} }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
   </svg>
 );
 
@@ -211,6 +212,12 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     setVisibleMessageLimit(80);
   }, [selectedChat?.id]);
   const [filterTab, setFilterTab] = useState(() => (user?.role === 'operator' ? 'mine' : 'all'));
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const myAttendingCount = useMemo(() => {
     if (!user?.id) return 0;
@@ -246,7 +253,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
   const getPresenceForJid = useCallback((jid) => {
     if (!jid) return null;
     const cleanNum = jid.split('@')[0];
-    return chatPresences[jid] 
+    return chatPresences[jid]
       || chatPresences[`${cleanNum}@s.whatsapp.net`]
       || chatPresences[`${cleanNum}@lid`]
       || chatPresences[cleanNum]
@@ -312,6 +319,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [chatToTransfer, setChatToTransfer] = useState(null);
   const [attendantsList, setAttendantsList] = useState([]);
+  const [attendants, setAttendants] = useState([]);
+  const [sidebarMode, setSidebarMode] = useState('karoo'); // 'karoo' (novo painel Fila e Operadores) | 'classic'
+  const [selectedOperatorId, setSelectedOperatorId] = useState(() => user?.id || null);
   const [departmentsList, setDepartmentsList] = useState([]);
   const [transferType, setTransferType] = useState('department'); // 'department' | 'attendant' | 'queue'
   const [selectedDepartment, setSelectedDepartment] = useState('');
@@ -321,6 +331,33 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
   const [transferNote, setTransferNote] = useState('');
   const [notifyClientWhatsApp, setNotifyClientWhatsApp] = useState(true);
   const [submittingTransfer, setSubmittingTransfer] = useState(false);
+
+  const loadAttendants = useCallback(async () => {
+    try {
+      const res = await api.getAttendants();
+      if (Array.isArray(res)) {
+        setAttendants(res);
+        setAttendantsList(res);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar atendentes:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAttendants();
+    const interval = setInterval(loadAttendants, 10000);
+    const unPresence = socketService.on('attendant:presence-changed', loadAttendants);
+    const unAvail = socketService.on('user:availability-changed', loadAttendants);
+    const unChat = socketService.on('chat-updated', loadAttendants);
+
+    return () => {
+      clearInterval(interval);
+      unPresence?.();
+      unAvail?.();
+      unChat?.();
+    };
+  }, [loadAttendants]);
 
   // Estados de Agendamento de Mensagens & Lembretes
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -376,7 +413,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     const details = [
       `📦 *${prod.name}*`,
       prod.brand ? `🏢 *Marca:* ${prod.brand}` : null,
-      hasPromo 
+      hasPromo
         ? `🔥 *OFERTA ESPECIAL:* De ~${priceFormatted}~ por *${promoFormatted}*`
         : `💰 *Preço:* ${priceFormatted}`,
       prod.sku ? `📋 *SKU:* ${prod.sku}` : null,
@@ -402,7 +439,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       try {
         const parsed = JSON.parse(prod.images);
         if (Array.isArray(parsed)) prodImages = parsed.filter(Boolean);
-      } catch (e) {}
+      } catch (e) { }
     }
     if (prodImages.length === 0 && prod.imageUrl) {
       prodImages = [prod.imageUrl];
@@ -453,11 +490,11 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         });
       }
 
-      setAiToast({ 
-        type: 'success', 
-        text: prodImages.length > 1 
-          ? `Álbum com ${prodImages.length} fotos enviado com sucesso!` 
-          : `Produto "${prod.name}" enviado com sucesso!` 
+      setAiToast({
+        type: 'success',
+        text: prodImages.length > 1
+          ? `Álbum com ${prodImages.length} fotos enviado com sucesso!`
+          : `Produto "${prod.name}" enviado com sucesso!`
       });
       setTimeout(() => setAiToast(null), 3500);
       loadChats();
@@ -592,7 +629,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         const storageKey = `zeplyn_appointments_empresa_${chatCompanyId}`;
         const existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
         localStorage.setItem(storageKey, JSON.stringify([newApt, ...existing]));
-      } catch (_) {}
+      } catch (_) { }
 
       setShowQuickAptModal(false);
       setAiToast({ title: 'Agendamento Registrado!', text: 'Compromisso marcado e visível na sua Agenda.' });
@@ -942,7 +979,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     if (isDictating) {
       try {
         dictationRef.current?.stop();
-      } catch (e) {}
+      } catch (e) { }
       setIsDictating(false);
       return;
     }
@@ -1259,7 +1296,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       setSelectedChat(prev => prev ? ({ ...prev, contactName: editingContactName.trim(), name: editingContactName.trim() }) : null);
 
-      setChats(prev => prev.map(c => 
+      setChats(prev => prev.map(c =>
         (c.id === selectedChat.id || c.contactJid === selectedChat.contactJid)
           ? { ...c, contactName: editingContactName.trim(), name: editingContactName.trim() }
           : c
@@ -1316,34 +1353,24 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
     const handleNewIncoming = (payload) => {
       loadChats();
-      loadQueueStats();
 
-      const activeChat = selectedChatRef.current || selectedChat;
       const isAssistant = payload.role === 'assistant' || payload.role === 'attendant';
-      const isInternalNote = payload.role === 'internal_note';
+      const cleanIncoming = (payload.contactJid || payload.userId || '').replace(/[^0-9]/g, '');
+      const cleanCurrent = (selectedChat?.contactJid || '').replace(/[^0-9]/g, '');
 
-      const incomingJid = payload.contactJid || payload.userId || '';
-      const currentJid = activeChat?.contactJid || '';
+      const isInstagramContact = Boolean((payload.contactJid || payload.userId || '').endsWith('@instagram') || selectedChat?.contactJid?.endsWith('@instagram'));
 
-      const isInstagramContact = Boolean(incomingJid.endsWith('@instagram') || currentJid.endsWith('@instagram'));
-      const isTelegramContact = Boolean(incomingJid.endsWith('@telegram') || currentJid.endsWith('@telegram'));
-
-      const isSamePhone = Boolean(
-        (incomingJid && currentJid && incomingJid === currentJid) ||
-        (payload.chatId && activeChat?.id && payload.chatId === activeChat.id) ||
-        (!isInstagramContact && !isTelegramContact && matchPhone(incomingJid, currentJid)) ||
-        (payload.contactId && currentJid && currentJid.includes(payload.contactId))
-      );
-
-      const isCurrentChat = Boolean(
-        activeChat &&
-        isSamePhone &&
-        (!payload.botId || !activeChat.botId || payload.botId === activeChat.botId || isInstagramContact || isTelegramContact)
-      );
+      const isCurrentChat = Boolean(selectedChat &&
+        ((!payload.botId || payload.botId === selectedChat.botId || isInstagramContact) &&
+          (payload.contactJid === selectedChat.contactJid ||
+            payload.userId === selectedChat.contactJid ||
+            payload.chatId === selectedChat.id ||
+            (cleanIncoming && cleanCurrent && cleanIncoming === cleanCurrent) ||
+            (payload.contactId && selectedChat.contactJid?.includes(payload.contactId)))));
 
       // Alertas sonoros e notificações em tempo real
-      if (!isAssistant && !isInternalNote && incomingJid) {
-        const isFromWaiting = payload.status === 'waiting' || (chatsRef.current && chatsRef.current.some(c => (c.contactJid === incomingJid || c.id === payload.chatId) && c.status === 'waiting'));
+      if (!isAssistant && (payload.contactJid || payload.userId)) {
+        const isFromWaiting = payload.status === 'waiting' || (chatsRef.current && chatsRef.current.some(c => (c.contactJid === payload.contactJid || c.id === payload.chatId) && c.status === 'waiting'));
         if (isFromWaiting) {
           desktopNotifications.playQueueAlert();
         } else {
@@ -1354,96 +1381,84 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
           desktopNotifications.notifyNewMessage({
             contactName: payload.contactName || payload.senderName || 'Cliente',
             message: payload.message || payload.content || 'Nova mensagem recebida',
-            contactJid: incomingJid,
+            contactJid: payload.contactJid || payload.userId,
             chatId: payload.chatId
           });
         }
       }
 
-      if (!activeChat || !isCurrentChat) return;
+      if (!selectedChat) return;
 
-      const senderName = payload.senderName || (isInternalNote ? (user?.name || 'Operador') : isAssistant ? (user?.name || 'Operador') : (payload.contactName || activeChat.contactName));
-      const newMsg = {
-        id: payload.id || `ws_${Date.now()}_${Math.random()}`,
-        role: payload.role || (isAssistant ? 'assistant' : (incomingJid ? 'user' : 'assistant')),
-        content: payload.message || payload.content,
-        senderName: senderName,
-        timestamp: new Date(payload.timestamp || Date.now()).toISOString()
-      };
-
-      setMessages(prev => {
-        // 1. Se já existe mensagem com o mesmo id, não duplica MAS atualiza se o conteúdo mudou
-        if (newMsg.id && prev.some(m => m.id === newMsg.id)) {
-          return prev.map(m => m.id === newMsg.id ? { ...m, ...newMsg, content: newMsg.content || m.content } : m);
-        }
-
-        // 2. Se for nota interna, substitui a nota otimista local correspondente
-        if (isInternalNote || newMsg.role === 'internal_note') {
-          const localNoteIdx = prev.findIndex(m => 
-            String(m.id).startsWith('local_note_') && 
-            (m.content === newMsg.content || (m.content && newMsg.content && m.content.trim() === newMsg.content.trim()))
-          );
-          if (localNoteIdx !== -1) {
-            const updated = [...prev];
-            updated[localNoteIdx] = newMsg;
-            return updated;
+      if (isCurrentChat) {
+        const isAssistant = payload.role === 'assistant' || payload.role === 'attendant';
+        const senderName = payload.senderName || (isAssistant ? (user?.name || 'Operador') : (payload.contactName || selectedChat.contactName));
+        const newMsg = {
+          id: payload.id || `ws_${Date.now()}_${Math.random()}`,
+          role: payload.role || (isAssistant ? 'assistant' : (payload.contactJid || payload.userId ? 'user' : 'assistant')),
+          content: payload.message || payload.content,
+          senderName: senderName,
+          timestamp: new Date(payload.timestamp || Date.now()).toISOString()
+        };
+        setMessages(prev => {
+          // 1. Se já existe mensagem com o mesmo id, não duplica MAS atualiza se o conteúdo mudou
+          if (newMsg.id && prev.some(m => m.id === newMsg.id)) {
+            return prev.map(m => m.id === newMsg.id ? { ...m, ...newMsg, content: newMsg.content || m.content } : m);
           }
-        }
 
-        // Função auxiliar para extrair texto limpo sem prefixo de citação para match robusto
-        const getBaseText = (txt) => {
-          if (!txt || typeof txt !== 'string') return '';
-          let s = txt.trim();
-          if (s.startsWith('[Em resposta a: "')) {
-            const closeIdx = s.indexOf('"] ');
-            if (closeIdx !== -1) {
-              s = s.substring(closeIdx + 3).trim();
+          // Função auxiliar para extrair texto limpo sem prefixo de citação para match robusto
+          const getBaseText = (txt) => {
+            if (!txt || typeof txt !== 'string') return '';
+            let s = txt.trim();
+            if (s.startsWith('[Em resposta a: "')) {
+              const closeIdx = s.indexOf('"] ');
+              if (closeIdx !== -1) {
+                s = s.substring(closeIdx + 3).trim();
+              }
+            }
+            return s;
+          };
+
+          // 2. Se for mensagem enviada (assistant/attendant), substitui mensagem local otimista pendente
+          if (isAssistant) {
+            const incomingBase = getBaseText(newMsg.content);
+            const localIdx = prev.findIndex(m => {
+              if (!String(m.id).startsWith('local_') || String(m.id).startsWith('local_note_')) return false;
+              if (m.content === newMsg.content) return true;
+              const localBase = getBaseText(m.content);
+              if (localBase && incomingBase && localBase === incomingBase) return true;
+              if (localBase && newMsg.content && newMsg.content.endsWith(localBase)) return true;
+              if (incomingBase && m.content && m.content.endsWith(incomingBase)) return true;
+              return false;
+            });
+
+            if (localIdx !== -1) {
+              const updated = [...prev];
+              updated[localIdx] = newMsg;
+              return updated;
             }
           }
-          return s;
-        };
 
-        // 3. Se for mensagem enviada (assistant/attendant), substitui mensagem local otimista pendente
-        if (isAssistant) {
-          const incomingBase = getBaseText(newMsg.content);
-          const localIdx = prev.findIndex(m => {
-            if (!String(m.id).startsWith('local_') || String(m.id).startsWith('local_note_')) return false;
-            if (m.content === newMsg.content) return true;
-            const localBase = getBaseText(m.content);
-            if (localBase && incomingBase && localBase === incomingBase) return true;
-            if (localBase && newMsg.content && newMsg.content.endsWith(localBase)) return true;
-            if (incomingBase && m.content && m.content.endsWith(incomingBase)) return true;
-            return false;
-          });
-
-          if (localIdx !== -1) {
-            const updated = [...prev];
-            updated[localIdx] = newMsg;
-            return updated;
+          return [...prev, newMsg];
+        });
+        if (messagesContainerRef.current) {
+          const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+          const isScrolledUp = (scrollHeight - scrollTop - clientHeight) > 120;
+          if (isScrolledUp) {
+            setShowScrollBottom(true);
+            setUnreadCountWhileScrolled(prev => prev + 1);
+          } else {
+            scrollToBottom();
           }
-        }
-
-        return [...prev, newMsg];
-      });
-
-      if (messagesContainerRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-        const isScrolledUp = (scrollHeight - scrollTop - clientHeight) > 120;
-        if (isScrolledUp) {
-          setShowScrollBottom(true);
-          setUnreadCountWhileScrolled(prev => prev + 1);
         } else {
           scrollToBottom();
         }
-      } else {
-        scrollToBottom();
       }
     };
 
     const cleanupReceived = socketService.on('whatsapp-message-received', handleNewIncoming);
     const cleanupSent = socketService.on('whatsapp-message-sent', handleNewIncoming);
     const cleanupGeneric = socketService.on('new_message', handleNewIncoming);
-    
+
     const cleanupReaction = socketService.on('whatsapp-reaction-updated', (data) => {
       setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, reaction: data.reaction } : m));
     });
@@ -1744,7 +1759,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     } finally {
       try {
         window.sessionStorage.removeItem('initial_chat_target');
-      } catch (e) {}
+      } catch (e) { }
       onClearInitialChatTarget?.();
     }
   }, [selectedBotId, setSelectedBotId, onClearInitialChatTarget]);
@@ -1756,7 +1771,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       try {
         const stored = window.sessionStorage.getItem('initial_chat_target');
         if (stored) target = JSON.parse(stored);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (target) {
@@ -1810,7 +1825,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       api.subscribePresence?.({
         botId: selectedChat.botId,
         contactJid: selectedChat.contactJid
-      }).catch(() => {});
+      }).catch(() => { });
     };
 
     requestPresence();
@@ -2009,7 +2024,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
     const diffDays = Math.round((todayZero - msgZero) / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) return 'Hoje';
+    if (diffDays <= 0) return 'Hoje';
     if (diffDays === 1) return 'Ontem';
     if (diffDays === 2) return 'Anteontem';
 
@@ -2099,20 +2114,12 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     scrollToBottom();
 
     try {
-      const res = await api.saveInternalNote({
+      await api.saveInternalNote({
         botId: selectedChat.botId,
         contactJid: selectedChat.contactJid,
         chatId: selectedChat.id,
         note: textToSave
       });
-      if (res?.id) {
-        setMessages(prev => {
-          if (prev.some(m => m.id === res.id)) {
-            return prev.filter(m => m.id !== tempId);
-          }
-          return prev.map(m => m.id === tempId ? { ...m, id: res.id } : m);
-        });
-      }
       loadChats();
       setAiToast({ type: 'success', text: 'Nota interna privada salva com sucesso!' });
       setTimeout(() => setAiToast(null), 3000);
@@ -2287,9 +2294,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     try {
       const isNew = selectedChat.status === 'finished';
       const res = await api.takeOverChat(selectedChat.id);
-      setSelectedChat(prev => ({ 
-        ...prev, 
-        status: 'attending', 
+      setSelectedChat(prev => ({
+        ...prev,
+        status: 'attending',
         attendantId: user?.id,
         attendantName: user?.name || 'Atendente',
         csatRating: isNew ? null : prev.csatRating,
@@ -2303,11 +2310,11 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             setMessages(Array.isArray(msgs) ? msgs : []);
             scrollToBottom();
           })
-          .catch(() => {});
+          .catch(() => { });
       }
-      setAiToast({ 
-        type: 'success', 
-        text: isNew ? '🚀 Novo atendimento iniciado com sucesso!' : 'Atendimento assumido!' 
+      setAiToast({
+        type: 'success',
+        text: isNew ? '🚀 Novo atendimento iniciado com sucesso!' : 'Atendimento assumido!'
       });
       setTimeout(() => setAiToast(null), 3500);
     } catch (err) {
@@ -2333,9 +2340,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       const chatPool = Array.isArray(freshChats) && freshChats.length > 0 ? freshChats : (chatsRef.current || []);
 
       // 3. Filtra conversas ativas (não finalizadas e diferentes da recém-encerrada)
-      const otherActiveChats = chatPool.filter(c => 
-        c.id !== finishedChatId && 
-        c.contactJid !== finishedContactJid && 
+      const otherActiveChats = chatPool.filter(c =>
+        c.id !== finishedChatId &&
+        c.contactJid !== finishedContactJid &&
         c.status !== 'finished'
       );
 
@@ -2361,16 +2368,16 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         }
 
         setSelectedChat(nextChat);
-        setAiToast({ 
-          type: 'success', 
-          text: `Atendimento com ${finishedContactName} finalizado! Aberto próximo cliente: ${nextChat.contactName || nextChat.contactJid.split('@')[0]}` 
+        setAiToast({
+          type: 'success',
+          text: `Atendimento com ${finishedContactName} finalizado! Aberto próximo cliente: ${nextChat.contactName || nextChat.contactJid.split('@')[0]}`
         });
         setTimeout(() => setAiToast(null), 4000);
       } else {
         // Se não houver mais nenhum cliente pendente, a tela do atendimento permanece fechada
-        setAiToast({ 
-          type: 'success', 
-          text: `Atendimento com ${finishedContactName} finalizado com sucesso! Fila livre.` 
+        setAiToast({
+          type: 'success',
+          text: `Atendimento com ${finishedContactName} finalizado com sucesso! Fila livre.`
         });
         setTimeout(() => setAiToast(null), 3500);
       }
@@ -2450,9 +2457,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         targetName = attendantsList.find(a => a.id === selectedTargetAttendantId)?.name || 'novo atendente';
       }
 
-      setAiToast({ 
-        type: 'success', 
-        text: `Atendimento transferido para ${targetName} com sucesso!` 
+      setAiToast({
+        type: 'success',
+        text: `Atendimento transferido para ${targetName} com sucesso!`
       });
       setTimeout(() => setAiToast(null), 4000);
 
@@ -2610,9 +2617,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       }
     } catch (err) {
       console.error('Erro ao reescrever texto com IA:', err);
-      setAiToast({ 
-        type: 'error', 
-        text: err.message || 'Erro ao comunicar com a IA. Verifique sua chave da OpenAI nas configurações.' 
+      setAiToast({
+        type: 'error',
+        text: err.message || 'Erro ao comunicar com a IA. Verifique sua chave da OpenAI nas configurações.'
       });
       setTimeout(() => setAiToast(null), 6000);
     } finally {
@@ -2757,8 +2764,8 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     const clean = content.replace(/\[Em resposta a: ".*?"\]\s*/g, '').trim();
     if (clean.includes('[StickerUrl:')) return true;
     if ((clean.startsWith('/uploads/') || clean.startsWith('http://') || clean.startsWith('https://')) &&
-        clean.toLowerCase().includes('.webp') &&
-        !clean.includes('[ImageUrl:') && !clean.includes('[AudioUrl:') && !clean.includes('[VideoUrl:') && !clean.includes('[DocumentUrl:')) {
+      clean.toLowerCase().includes('.webp') &&
+      !clean.includes('[ImageUrl:') && !clean.includes('[AudioUrl:') && !clean.includes('[VideoUrl:') && !clean.includes('[DocumentUrl:')) {
       return true;
     }
     return false;
@@ -2897,9 +2904,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       }
     } catch (err) {
       console.error('Erro ao responder com IA:', err);
-      setAiToast({ 
-        type: 'error', 
-        text: err.message || 'Erro ao comunicar com a IA. Verifique sua chave da OpenAI nas configurações.' 
+      setAiToast({
+        type: 'error',
+        text: err.message || 'Erro ao comunicar com a IA. Verifique sua chave da OpenAI nas configurações.'
       });
       setTimeout(() => setAiToast(null), 5000);
     } finally {
@@ -2939,12 +2946,12 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
   const startAudioRecord = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { 
+        audio: {
           sampleRate: 48000,
           channelCount: 1,
-          echoCancellation: true, 
+          echoCancellation: true,
           noiseSuppression: false, // Evita corte de sílabas e efeito robótico/aquário do Chrome
-          autoGainControl: true 
+          autoGainControl: true
         }
       });
       const mimeCandidates = [
@@ -3059,21 +3066,21 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         }
 
         const mediaInfo = getMessageMediaInfo(quotedMediaUrl || quotedRaw);
-        const isSticker = mediaInfo?.type === 'sticker' || 
-          quotedLabel === 'Figurinha' || 
+        const isSticker = mediaInfo?.type === 'sticker' ||
+          quotedLabel === 'Figurinha' ||
           quotedRaw.toLowerCase().includes('.webp') ||
           quotedRaw.toLowerCase().includes('chat_sticker') ||
           quotedRaw.toLowerCase().includes('sticker');
 
         const isImage = !isSticker && (
-          mediaInfo?.type === 'image' || 
-          quotedLabel === 'Foto' || 
+          mediaInfo?.type === 'image' ||
+          quotedLabel === 'Foto' ||
           /\.(jpeg|jpg|png|gif)/i.test(quotedRaw)
         );
 
         const isVideo = !isSticker && (
-          mediaInfo?.type === 'video' || 
-          quotedLabel === 'Vídeo' || 
+          mediaInfo?.type === 'video' ||
+          quotedLabel === 'Vídeo' ||
           /\.(mp4|webm)/i.test(quotedRaw)
         );
 
@@ -3112,9 +3119,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               <span style={{ fontWeight: 700, display: 'block', fontSize: '0.70rem', color: 'var(--primary)', marginBottom: '1px' }}>
                 Mensagem Citada
               </span>
-              <div style={{ 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
+              <div style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 display: 'flex',
                 alignItems: 'center',
@@ -3167,14 +3174,14 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 {isVideo ? (
                   <video src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
                 ) : (
-                  <img 
-                    src={previewUrl} 
-                    alt="Citação" 
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: isSticker ? 'contain' : 'cover' 
-                    }} 
+                  <img
+                    src={previewUrl}
+                    alt="Citação"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: isSticker ? 'contain' : 'cover'
+                    }}
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
                 )}
@@ -3193,15 +3200,15 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         <div>
           {quoteElement}
           <div style={{ marginTop: '4px' }}>
-            <img 
-              src={stickerMatch[1]} 
-              alt="Figurinha" 
+            <img
+              src={stickerMatch[1]}
+              alt="Figurinha"
               loading="lazy"
               decoding="async"
               referrerPolicy="no-referrer"
-              style={{ width: '135px', height: '135px', objectFit: 'contain', display: 'block', background: 'transparent' }} 
-              onError={(e) => { 
-                e.target.style.display = 'none'; 
+              style={{ width: '135px', height: '135px', objectFit: 'contain', display: 'block', background: 'transparent' }}
+              onError={(e) => {
+                e.target.style.display = 'none';
                 if (!e.target.nextSibling) {
                   e.target.insertAdjacentHTML('afterend', '<span style="font-size:0.75rem;opacity:0.6;font-style:italic">[Figurinha expirada]</span>');
                 }
@@ -3273,15 +3280,15 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         <div>
           {quoteElement}
           <div style={{ marginTop: '4px' }}>
-            <img 
-              src={imgUrl} 
-              alt="Mídia" 
+            <img
+              src={imgUrl}
+              alt="Mídia"
               loading="lazy"
               decoding="async"
               referrerPolicy="no-referrer"
-              style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', objectFit: 'cover', display: 'block' }} 
-              onError={(e) => { 
-                e.target.style.display = 'none'; 
+              style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', objectFit: 'cover', display: 'block' }}
+              onError={(e) => {
+                e.target.style.display = 'none';
                 if (!e.target.nextSibling) {
                   e.target.insertAdjacentHTML('afterend', '<span style="font-size:0.75rem;opacity:0.6;font-style:italic">[Imagem expirada ou não disponível]</span>');
                 }
@@ -3412,10 +3419,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         <div>
           {quoteElement}
           <div style={{ marginTop: '4px' }}>
-            <video 
-              controls 
-              src={videoUrl} 
-              style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', display: 'block' }} 
+            <video
+              controls
+              src={videoUrl}
+              style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '8px', display: 'block' }}
               onError={(e) => {
                 e.target.style.display = 'none';
                 if (!e.target.nextSibling) {
@@ -3440,10 +3447,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
         <div>
           {quoteElement}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-            <a 
-              href={fileUrl} 
-              target="_blank" 
-              rel="noopener noreferrer" 
+            <a
+              href={fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'inherit', textDecoration: 'underline', fontWeight: 600 }}
             >
               <FileText size={16} /> {fileName}
@@ -3494,7 +3501,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       return (
         <div style={{ maxWidth: '320px', minWidth: '240px' }}>
           {quoteElement}
-          <div 
+          <div
             style={{
               marginTop: '6px',
               borderRadius: '12px',
@@ -3505,7 +3512,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Header com Mapa estilizado */}
-            <div 
+            <div
               style={{
                 height: '75px',
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
@@ -3516,16 +3523,16 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 overflow: 'hidden'
               }}
             >
-              <div 
+              <div
                 style={{
                   position: 'absolute',
                   inset: 0,
                   opacity: 0.15,
                   backgroundImage: 'radial-gradient(circle, #fff 1.5px, transparent 1.5px)',
                   backgroundSize: '12px 12px'
-                }} 
+                }}
               />
-              <div 
+              <div
                 style={{
                   width: '40px',
                   height: '40px',
@@ -3630,7 +3637,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       return (
         <div style={{ maxWidth: '300px', minWidth: '240px' }}>
           {quoteElement}
-          <div 
+          <div
             style={{
               marginTop: '6px',
               padding: '12px 14px',
@@ -3641,7 +3648,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-              <div 
+              <div
                 style={{
                   width: '42px',
                   height: '42px',
@@ -3745,7 +3752,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
   // Filtragem de chats por busca, aba de status e etiqueta com deduplicação defensiva de contatos
   const filteredChats = useMemo(() => {
     const list = chats.filter(chat => {
-      const matchesQuery = 
+      const matchesQuery =
         (chat.contactName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (chat.contactJid || '').toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -3787,540 +3794,603 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
   }, [chats, searchQuery, filterTab, user?.id, selectedTagFilter]);
 
   return (
-    <div style={{ display: 'flex', height: '100%', maxHeight: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-primary)' }}>
-      {/* Coluna 1: Lista de Conversas */}
-      <div 
-        style={{
-          width: '340px',
-          minWidth: '340px',
-          borderRight: '1px solid var(--border-subtle)',
-          backgroundColor: 'var(--bg-secondary)',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        {/* Busca e Abas */}
-        <div style={{ padding: '16px', borderBottom: '1px solid var(--border-subtle)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Buscar contato ou número..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ width: '100%', paddingLeft: '38px', height: '38px', fontSize: '0.85rem' }}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={toggleSoundMuted}
-              title={isSoundMuted ? "Alertas sonoros desativados (Clique para ativar som)" : "Alertas sonoros ativados (Clique para silenciar)"}
-              style={{
-                width: '38px',
-                height: '38px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: '8px',
-                border: '1px solid var(--border-subtle)',
-                backgroundColor: isSoundMuted ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-primary)',
-                color: isSoundMuted ? '#ef4444' : 'var(--primary)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                flexShrink: 0
-              }}
-            >
-              {isSoundMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-            </button>
-          </div>
-
-          {/* Abas de Status com suporte a Meus Atendimentos */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', marginBottom: '8px' }}>
-            {[
-              { id: 'mine', label: 'Meus', count: myAttendingCount, badgeColor: 'var(--primary)' },
-              { id: 'waiting', label: 'Fila', count: queueStats.waitingCount, badgeColor: '#ef4444' },
-              { id: 'attending', label: 'Ao Vivo' },
-              { id: 'finished', label: 'Fim' },
-              { id: 'all', label: 'Todos' }
-            ].map(tab => (
+    <div style={{ display: 'flex', height: '100%', maxHeight: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-primary)', position: 'relative' }}>
+      {/* Coluna 1: Lista de Conversas (Em mobile, exibe apenas se nenhuma conversa estiver aberta) */}
+      {(!isMobile || !selectedChat) && (
+        <div
+          className="chat-sidebar-col"
+          style={{
+            width: isMobile ? '100%' : '340px',
+            minWidth: isMobile ? '100%' : '340px',
+            maxWidth: isMobile ? '100%' : '340px',
+            borderRight: isMobile ? 'none' : '1px solid var(--border-subtle)',
+            backgroundColor: 'var(--bg-secondary)',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            flexShrink: 0
+          }}
+        >
+          {/* Busca e Abas */}
+          <div style={{ padding: '16px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar contato ou número..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: '100%', paddingLeft: '38px', height: '38px', fontSize: '0.85rem' }}
+                />
+              </div>
               <button
-                key={tab.id}
-                onClick={() => setFilterTab(tab.id)}
+                type="button"
+                onClick={toggleSoundMuted}
+                title={isSoundMuted ? "Alertas sonoros desativados (Clique para ativar som)" : "Alertas sonoros ativados (Clique para silenciar)"}
                 style={{
-                  padding: '6px 2px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  backgroundColor: filterTab === tab.id ? 'var(--primary-subtle)' : 'transparent',
-                  color: filterTab === tab.id ? 'var(--primary)' : 'var(--text-muted)',
-                  transition: 'var(--transition)',
+                  width: '38px',
+                  height: '38px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '3px'
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: isSoundMuted ? 'rgba(239, 68, 68, 0.12)' : 'var(--bg-primary)',
+                  color: isSoundMuted ? '#ef4444' : 'var(--primary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0
                 }}
               >
-                <span>{tab.label}</span>
-                {tab.count !== undefined && tab.count > 0 && (
-                  <span 
-                    style={{
-                      backgroundColor: tab.badgeColor || '#ef4444',
-                      color: '#ffffff',
-                      fontSize: '0.62rem',
-                      fontWeight: 700,
-                      borderRadius: '10px',
-                      padding: '0 4px',
-                      lineHeight: '14px'
-                    }}
-                  >
-                    {tab.count}
-                  </span>
-                )}
+                {isSoundMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
               </button>
-            ))}
-          </div>
+              <button
+                type="button"
+                onClick={() => setSidebarMode('karoo')}
+                title="Mudar para Painel de Fila & Operadores"
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--bg-primary)',
+                  color: 'var(--primary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0
+                }}
+              >
+                <Users size={18} />
+              </button>
+            </div>
 
-          {/* Painel de Fila de Espera & Estatísticas Round-Robin */}
-          {(filterTab === 'waiting' || queueStats.waitingCount > 0) && (
-            <div 
-              style={{
-                margin: '8px 0',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                <Clock size={15} color="#ef4444" style={{ flexShrink: 0 }} />
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                    Fila: <strong style={{ color: '#ef4444' }}>{queueStats.waitingCount}</strong> {queueStats.waitingCount === 1 ? 'cliente' : 'clientes'}
+            {/* Abas de Status com suporte a Meus Atendimentos */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', marginBottom: '8px', backgroundColor: 'var(--bg-tertiary)', padding: '3px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+              {[
+                { id: 'mine', label: 'Meus', count: myAttendingCount, badgeColor: 'var(--primary)' },
+                { id: 'waiting', label: 'Fila', count: queueStats.waitingCount, badgeColor: '#ef4444' },
+                { id: 'attending', label: 'Ao Vivo' },
+                { id: 'finished', label: 'Fim' },
+                { id: 'all', label: 'Todos' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilterTab(tab.id)}
+                  style={{
+                    padding: '7px 2px',
+                    borderRadius: '7px',
+                    border: 'none',
+                    fontSize: '0.74rem',
+                    fontWeight: filterTab === tab.id ? 700 : 500,
+                    cursor: 'pointer',
+                    backgroundColor: filterTab === tab.id ? 'var(--bg-card-hover)' : 'transparent',
+                    color: filterTab === tab.id ? 'var(--primary)' : 'var(--text-muted)',
+                    boxShadow: filterTab === tab.id ? '0 1px 3px rgba(0,0,0,0.25)' : 'none',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <span
+                      style={{
+                        backgroundColor: tab.badgeColor || '#ef4444',
+                        color: '#ffffff',
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        borderRadius: '10px',
+                        padding: '0 4px',
+                        lineHeight: '14px'
+                      }}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Painel de Fila de Espera & Estatísticas Round-Robin */}
+            {(filterTab === 'waiting' || queueStats.waitingCount > 0) && (
+              <div
+                style={{
+                  margin: '8px 0',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                  <Clock size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                      Fila: <strong style={{ color: '#ef4444' }}>{queueStats.waitingCount}</strong> {queueStats.waitingCount === 1 ? 'cliente' : 'clientes'}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                      Espera média: <strong style={{ color: 'var(--text-main)' }}>{queueStats.avgWaitFormatted}</strong>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                    Espera média: <strong style={{ color: 'var(--text-main)' }}>{queueStats.avgWaitFormatted}</strong>
-                  </div>
+                </div>
+
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    padding: '2px 7px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    flexShrink: 0
+                  }}
+                  title="Novo lead é distribuído automaticamente entre os operadores disponíveis"
+                >
+                  Round-Robin
+                </span>
+              </div>
+            )}
+
+            {/* Barra de Filtros Rápidos por Etiquetas / Tags do Usuário */}
+            <div style={{ marginTop: '8px', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Tag size={11} color="var(--primary)" />
+                  <span>Status & Etiquetas</span>
+                </span>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  {!isTagsExpanded && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tagFilterScrollRef.current) {
+                            tagFilterScrollRef.current.scrollBy({ left: -110, behavior: 'smooth' });
+                          }
+                        }}
+                        className="btn-icon"
+                        style={{ width: '22px', height: '22px', padding: 0 }}
+                        title="Rolar etiquetas para esquerda"
+                      >
+                        <ChevronLeft size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tagFilterScrollRef.current) {
+                            tagFilterScrollRef.current.scrollBy({ left: 110, behavior: 'smooth' });
+                          }
+                        }}
+                        className="btn-icon"
+                        style={{ width: '22px', height: '22px', padding: 0 }}
+                        title="Rolar etiquetas para direita"
+                      >
+                        <ChevronRight size={13} />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Botão de Expandir / Recolher para ver todas */}
+                  <button
+                    type="button"
+                    onClick={() => setIsTagsExpanded(prev => !prev)}
+                    className="btn-icon"
+                    style={{
+                      width: '22px',
+                      height: '22px',
+                      padding: 0,
+                      color: isTagsExpanded ? 'var(--primary)' : 'var(--text-muted)',
+                      backgroundColor: isTagsExpanded ? 'var(--primary-subtle)' : 'transparent'
+                    }}
+                    title={isTagsExpanded ? 'Recolher em barra única' : 'Ver todas as etiquetas'}
+                  >
+                    <ChevronDown size={13} style={{ transform: isTagsExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
+                  </button>
                 </div>
               </div>
 
-              <span 
-                style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 700,
-                  padding: '2px 7px',
-                  borderRadius: '10px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  color: '#10b981',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  flexShrink: 0
+              {/* Container com Rolagem Horizontal Suave + Suporte ao Scroll do Mouse */}
+              <div
+                ref={tagFilterScrollRef}
+                className="custom-horizontal-scrollbar"
+                onWheel={(e) => {
+                  if (!isTagsExpanded && e.deltaY !== 0 && tagFilterScrollRef.current) {
+                    tagFilterScrollRef.current.scrollLeft += e.deltaY;
+                  }
                 }}
-                title="Novo lead é distribuído automaticamente entre os operadores disponíveis"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexWrap: isTagsExpanded ? 'wrap' : 'nowrap',
+                  gap: '5px',
+                  overflowX: isTagsExpanded ? 'visible' : 'auto',
+                  overflowY: isTagsExpanded ? 'visible' : 'hidden',
+                  paddingTop: '2px',
+                  paddingBottom: isTagsExpanded ? '4px' : '6px',
+                  scrollBehavior: 'smooth'
+                }}
               >
-                Round-Robin
-              </span>
-            </div>
-          )}
-
-          {/* Barra de Filtros Rápidos por Etiquetas / Tags do Usuário */}
-          <div style={{ marginTop: '8px', marginBottom: '4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Tag size={11} color="var(--primary)" />
-                <span>Status & Etiquetas</span>
-              </span>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                {!isTagsExpanded && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (tagFilterScrollRef.current) {
-                          tagFilterScrollRef.current.scrollBy({ left: -110, behavior: 'smooth' });
-                        }
-                      }}
-                      className="btn-icon"
-                      style={{ width: '22px', height: '22px', padding: 0 }}
-                      title="Rolar etiquetas para esquerda"
-                    >
-                      <ChevronLeft size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (tagFilterScrollRef.current) {
-                          tagFilterScrollRef.current.scrollBy({ left: 110, behavior: 'smooth' });
-                        }
-                      }}
-                      className="btn-icon"
-                      style={{ width: '22px', height: '22px', padding: 0 }}
-                      title="Rolar etiquetas para direita"
-                    >
-                      <ChevronRight size={13} />
-                    </button>
-                  </>
-                )}
-
-                {/* Botão de Expandir / Recolher para ver todas */}
                 <button
                   type="button"
-                  onClick={() => setIsTagsExpanded(prev => !prev)}
-                  className="btn-icon"
-                  style={{ 
-                    width: '22px', 
-                    height: '22px', 
-                    padding: 0, 
-                    color: isTagsExpanded ? 'var(--primary)' : 'var(--text-muted)',
-                    backgroundColor: isTagsExpanded ? 'var(--primary-subtle)' : 'transparent'
+                  onClick={() => setSelectedTagFilter('all')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '16px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    border: '1px solid',
+                    borderColor: selectedTagFilter === 'all' ? 'var(--primary)' : 'var(--border-subtle)',
+                    backgroundColor: selectedTagFilter === 'all' ? 'var(--primary-subtle)' : 'transparent',
+                    color: selectedTagFilter === 'all' ? 'var(--primary)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
                   }}
-                  title={isTagsExpanded ? 'Recolher em barra única' : 'Ver todas as etiquetas'}
                 >
-                  <ChevronDown size={13} style={{ transform: isTagsExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
+                  🏷️ Todas
+                </button>
+                {(userTags.length > 0 ? userTags : PRESET_TAGS).map(tagItem => {
+                  const tagLabel = tagItem.name || tagItem.label;
+                  const isSelected = selectedTagFilter === tagLabel || selectedTagFilter === tagItem.id;
+                  const style = getTagStyle(tagItem, userTags);
+                  const count = chats.filter(c => parseTags(c.tags).some(t => (typeof t === 'string' ? t : (t.name || t.label)) === tagLabel)).length;
+                  return (
+                    <button
+                      key={tagItem.id || tagLabel}
+                      type="button"
+                      onClick={() => setSelectedTagFilter(isSelected ? 'all' : tagLabel)}
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '16px',
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        border: '1px solid',
+                        borderColor: isSelected ? style.color : (count > 0 ? style.border : 'var(--border-subtle)'),
+                        backgroundColor: isSelected ? style.bg : (count > 0 ? 'rgba(255,255,255,0.03)' : 'transparent'),
+                        color: isSelected ? style.color : (count > 0 ? 'var(--text-main)' : 'var(--text-muted)'),
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        flexShrink: 0
+                      }}
+                      title={`Filtrar por ${tagLabel}`}
+                    >
+                      <span>{tagLabel}</span>
+                      {count > 0 && (
+                        <span style={{
+                          fontSize: '0.62rem',
+                          backgroundColor: isSelected ? style.color : 'rgba(255, 255, 255, 0.12)',
+                          color: isSelected ? '#ffffff' : 'inherit',
+                          padding: '0 4px',
+                          borderRadius: '8px'
+                        }}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('app:navigate', { detail: 'tags' }))}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: '16px',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    border: '1px dashed var(--primary)',
+                    backgroundColor: 'var(--primary-subtle)',
+                    color: 'var(--primary)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    flexShrink: 0
+                  }}
+                  title="Gerenciar e criar minhas nomenclaturas na tela dedicada"
+                >
+                  <Settings size={11} />
+                  <span>Nomenclaturas</span>
                 </button>
               </div>
             </div>
-
-            {/* Container com Rolagem Horizontal Suave + Suporte ao Scroll do Mouse */}
-            <div
-              ref={tagFilterScrollRef}
-              className="custom-horizontal-scrollbar"
-              onWheel={(e) => {
-                if (!isTagsExpanded && e.deltaY !== 0 && tagFilterScrollRef.current) {
-                  tagFilterScrollRef.current.scrollLeft += e.deltaY;
-                }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                flexWrap: isTagsExpanded ? 'wrap' : 'nowrap',
-                gap: '5px',
-                overflowX: isTagsExpanded ? 'visible' : 'auto',
-                overflowY: isTagsExpanded ? 'visible' : 'hidden',
-                paddingTop: '2px',
-                paddingBottom: isTagsExpanded ? '4px' : '6px',
-                scrollBehavior: 'smooth'
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setSelectedTagFilter('all')}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: '16px',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  border: '1px solid',
-                  borderColor: selectedTagFilter === 'all' ? 'var(--primary)' : 'var(--border-subtle)',
-                  backgroundColor: selectedTagFilter === 'all' ? 'var(--primary-subtle)' : 'transparent',
-                  color: selectedTagFilter === 'all' ? 'var(--primary)' : 'var(--text-muted)',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0
-                }}
-              >
-                🏷️ Todas
-              </button>
-              {(userTags.length > 0 ? userTags : PRESET_TAGS).map(tagItem => {
-                const tagLabel = tagItem.name || tagItem.label;
-                const isSelected = selectedTagFilter === tagLabel || selectedTagFilter === tagItem.id;
-                const style = getTagStyle(tagItem, userTags);
-                const count = chats.filter(c => parseTags(c.tags).some(t => (typeof t === 'string' ? t : (t.name || t.label)) === tagLabel)).length;
-                return (
-                  <button
-                    key={tagItem.id || tagLabel}
-                    type="button"
-                    onClick={() => setSelectedTagFilter(isSelected ? 'all' : tagLabel)}
-                    style={{
-                      padding: '3px 8px',
-                      borderRadius: '16px',
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      border: '1px solid',
-                      borderColor: isSelected ? style.color : (count > 0 ? style.border : 'var(--border-subtle)'),
-                      backgroundColor: isSelected ? style.bg : (count > 0 ? 'rgba(255,255,255,0.03)' : 'transparent'),
-                      color: isSelected ? style.color : (count > 0 ? 'var(--text-main)' : 'var(--text-muted)'),
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      flexShrink: 0
-                    }}
-                    title={`Filtrar por ${tagLabel}`}
-                  >
-                    <span>{tagLabel}</span>
-                    {count > 0 && (
-                      <span style={{
-                        fontSize: '0.62rem',
-                        backgroundColor: isSelected ? style.color : 'rgba(255, 255, 255, 0.12)',
-                        color: isSelected ? '#ffffff' : 'inherit',
-                        padding: '0 4px',
-                        borderRadius: '8px'
-                      }}>
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('app:navigate', { detail: 'tags' }))}
-                style={{
-                  padding: '3px 8px',
-                  borderRadius: '16px',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  border: '1px dashed var(--primary)',
-                  backgroundColor: 'var(--primary-subtle)',
-                  color: 'var(--primary)',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                  flexShrink: 0
-                }}
-                title="Gerenciar e criar minhas nomenclaturas na tela dedicada"
-              >
-                <Settings size={11} />
-                <span>Nomenclaturas</span>
-              </button>
-            </div>
           </div>
-        </div>
 
-        {/* Lista de Itens */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {filteredChats.length === 0 ? (
-            <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-              Nenhum atendimento encontrado.
-            </div>
-          ) : (
-            filteredChats.map(chat => {
-              const isSelected = selectedChat && (selectedChat.id === chat.id || selectedChat.contactJid === chat.contactJid);
-              const cleanNumber = (chat.contactJid || '').split('@')[0];
-              const chatTags = parseTags(chat.tags);
-              const chatChannelMeta = getChannelMeta(chat.channel, chat.contactJid);
+          {/* Lista de Itens */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {filteredChats.length === 0 ? (
+              <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                Nenhum atendimento encontrado.
+              </div>
+            ) : (
+              filteredChats.map(chat => {
+                const isSelected = selectedChat && (selectedChat.id === chat.id || selectedChat.contactJid === chat.contactJid);
+                const cleanNumber = (chat.contactJid || '').split('@')[0];
+                const chatTags = parseTags(chat.tags);
+                const chatChannelMeta = getChannelMeta(chat.channel, chat.contactJid);
 
-              return (
-                <div
-                  key={chat.id}
-                  onClick={() => setSelectedChat(chat)}
-                  style={{
-                    padding: '14px 16px',
-                    borderBottom: '1px solid var(--border-subtle)',
-                    cursor: 'pointer',
-                    backgroundColor: isSelected ? 'var(--bg-tertiary)' : 'transparent',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '12px',
-                    transition: 'var(--transition)'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  {/* Avatar */}
-                  <div 
+                return (
+                  <div
+                    key={chat.id}
+                    onClick={() => setSelectedChat(chat)}
                     style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--primary-subtle)',
+                      padding: '14px 16px',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      cursor: 'pointer',
+                      backgroundColor: isSelected ? 'var(--bg-tertiary)' : 'transparent',
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--primary)',
-                      fontWeight: 700,
-                      flexShrink: 0,
-                      overflow: 'hidden',
-                      marginTop: '2px',
-                      position: 'relative'
+                      alignItems: 'flex-start',
+                      gap: '12px',
+                      transition: 'var(--transition)'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    {chat.profilePicUrl ? (
-                      <img 
-                        src={chat.profilePicUrl} 
-                        alt="" 
-                        referrerPolicy="no-referrer"
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                      />
-                    ) : (
-                      (chat.contactName || cleanNumber || 'C').charAt(0).toUpperCase()
-                    )}
-                    {getPresenceForJid(chat.contactJid)?.presence === 'available' && (
-                      <span 
-                        style={{
-                          position: 'absolute',
-                          bottom: '0px',
-                          right: '0px',
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '50%',
-                          backgroundColor: '#10b981',
-                          border: '2px solid var(--bg-secondary)',
-                          boxShadow: '0 0 6px #10b981'
-                        }}
-                        title="Online"
-                      />
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1, marginRight: '6px' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {chat.contactName || cleanNumber}
-                        </span>
-                        <span 
+                    {/* Avatar */}
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--primary-subtle)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary)',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                        overflow: 'hidden',
+                        marginTop: '2px',
+                        position: 'relative'
+                      }}
+                    >
+                      {chat.profilePicUrl ? (
+                        <img
+                          src={chat.profilePicUrl}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        (chat.contactName || cleanNumber || 'C').charAt(0).toUpperCase()
+                      )}
+                      {getPresenceForJid(chat.contactJid)?.presence === 'available' && (
+                        <span
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            fontSize: '0.64rem',
-                            fontWeight: 700,
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                            backgroundColor: chatChannelMeta.bg,
-                            color: chatChannelMeta.color,
-                            border: `1px solid ${chatChannelMeta.border}`,
-                            flexShrink: 0
+                            position: 'absolute',
+                            bottom: '0px',
+                            right: '0px',
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            backgroundColor: '#10b981',
+                            border: '2px solid var(--bg-secondary)',
+                            boxShadow: '0 0 6px #10b981'
                           }}
-                          title={`Canal: ${chatChannelMeta.label}`}
-                        >
-                          {chatChannelMeta.icon}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        {chat.csatRating && chat.status === 'finished' && (
-                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(245, 158, 11, 0.12)', padding: '1px 5px', borderRadius: '4px' }}>
-                            ⭐ {chat.csatRating}/5
-                          </span>
-                        )}
-                        <span className={`badge-status ${chat.status}`} style={{ fontSize: '0.68rem', padding: '2px 6px' }}>
-                          {chat.status === 'attending' ? 'Ao Vivo' : chat.status === 'waiting' ? 'Aguardando' : 'Finalizado'}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      {(() => {
-                        const p = getPresenceForJid(chat.contactJid);
-                        if (p?.presence === 'composing') {
-                          return (
-                            <span style={{ color: '#10b981', fontWeight: 600, fontStyle: 'italic', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                              ✍️ digitando...
-                            </span>
-                          );
-                        }
-                        if (p?.presence === 'recording') {
-                          return (
-                            <span style={{ color: '#10b981', fontWeight: 600, fontStyle: 'italic', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                              🎙️ gravando áudio...
-                            </span>
-                          );
-                        }
-                        return (
-                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cleanNumber}</span>
-                        );
-                      })()}
-                      {chat.attendantName && (
-                        <span 
-                          style={{ 
-                            fontSize: '0.68rem', 
-                            color: '#93c5fd', 
-                            backgroundColor: 'rgba(59, 130, 246, 0.12)', 
-                            padding: '1px 6px', 
-                            borderRadius: '4px', 
-                            maxWidth: '120px', 
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis', 
-                            whiteSpace: 'nowrap',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px'
-                          }} 
-                          title={`Atendente responsável: ${chat.attendantName}`}
-                        >
-                          <User size={10} /> {chat.attendantName}
-                        </span>
+                          title="Online"
+                        />
                       )}
                     </div>
 
-                    {/* Etiquetas / Tags Coloridas do Chat */}
-                    {chatTags.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                        {chatTags.slice(0, 3).map((tag, tIdx) => {
-                          const style = getTagStyle(tag, userTags);
-                          return (
-                            <span
-                              key={tIdx}
-                              style={{
-                                fontSize: '0.65rem',
-                                fontWeight: 600,
-                                padding: '1px 6px',
-                                borderRadius: '10px',
-                                backgroundColor: style.bg,
-                                color: style.color,
-                                border: `1px solid ${style.border}`,
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              {style.label}
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1, marginRight: '6px' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {chat.contactName || cleanNumber}
+                          </span>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontSize: '0.64rem',
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              backgroundColor: chatChannelMeta.bg,
+                              color: chatChannelMeta.color,
+                              border: `1px solid ${chatChannelMeta.border}`,
+                              flexShrink: 0
+                            }}
+                            title={`Canal: ${chatChannelMeta.label}`}
+                          >
+                            {chatChannelMeta.icon}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {chat.csatRating && chat.status === 'finished' && (
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(245, 158, 11, 0.12)', padding: '1px 5px', borderRadius: '4px' }}>
+                              ⭐ {chat.csatRating}/5
                             </span>
+                          )}
+                          <span className={`badge-status ${chat.status}`} style={{ fontSize: '0.68rem', padding: '2px 6px' }}>
+                            {chat.status === 'attending' ? 'Ao Vivo' : chat.status === 'waiting' ? 'Aguardando' : 'Finalizado'}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {(() => {
+                          const p = getPresenceForJid(chat.contactJid);
+                          if (p?.presence === 'composing') {
+                            return (
+                              <span style={{ color: '#10b981', fontWeight: 600, fontStyle: 'italic', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                ✍️ digitando...
+                              </span>
+                            );
+                          }
+                          if (p?.presence === 'recording') {
+                            return (
+                              <span style={{ color: '#10b981', fontWeight: 600, fontStyle: 'italic', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                🎙️ gravando áudio...
+                              </span>
+                            );
+                          }
+                          return (
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cleanNumber}</span>
                           );
-                        })}
-                        {chatTags.length > 3 && (
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
-                            +{chatTags.length - 3}
+                        })()}
+                        {chat.attendantName && (
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              color: '#93c5fd',
+                              backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              maxWidth: '120px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px'
+                            }}
+                            title={`Atendente responsável: ${chat.attendantName}`}
+                          >
+                            <User size={10} /> {chat.attendantName}
                           </span>
                         )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
 
-      {/* Coluna 2: Chat Ativo */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)', minHeight: 0, overflow: 'hidden' }}>
-        {selectedChat ? (
-          <>
-            {/* Header da Conversa */}
-            <div 
-              style={{
-                height: '70px',
-                padding: '0 24px',
-                backgroundColor: 'var(--bg-secondary)',
-                borderBottom: '1px solid var(--border-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <div 
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
-                onClick={() => setShowInfoSidebar(prev => !prev)}
-                title={showInfoSidebar ? "Clique para ocultar detalhes do contato" : "Clique para ver detalhes do contato"}
+                      {/* Etiquetas / Tags Coloridas do Chat */}
+                      {chatTags.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                          {chatTags.slice(0, 3).map((tag, tIdx) => {
+                            const style = getTagStyle(tag, userTags);
+                            return (
+                              <span
+                                key={tIdx}
+                                style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: 600,
+                                  padding: '1px 6px',
+                                  borderRadius: '10px',
+                                  backgroundColor: style.bg,
+                                  color: style.color,
+                                  border: `1px solid ${style.border}`,
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                {style.label}
+                              </span>
+                            );
+                          })}
+                          {chatTags.length > 3 && (
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                              +{chatTags.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Coluna 2: Chat Ativo (Em mobile, exibe apenas quando uma conversa estiver selecionada) */}
+      {(!isMobile || selectedChat) && (
+        <div 
+          className="chat-conversation-col"
+          style={{ 
+            flex: 1, 
+            width: isMobile ? '100%' : 'auto', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            backgroundColor: 'var(--bg-primary)', 
+            minHeight: 0, 
+            overflow: 'hidden' 
+          }}
+        >
+          {selectedChat ? (
+            <>
+              {/* Header da Conversa */}
+              <div
+                style={{
+                  height: isMobile ? '60px' : '70px',
+                  padding: isMobile ? '0 12px' : '0 24px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px'
+                }}
               >
-                <div 
+                {isMobile && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChat(null)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-main)',
+                        cursor: 'pointer',
+                        padding: '8px',
+                        marginLeft: '-6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '8px',
+                        flexShrink: 0
+                      }}
+                      title="Voltar para a lista de conversas"
+                    >
+                      <ChevronLeft size={24} />
+                    </button>
+                  )}
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '12px', cursor: 'pointer', minWidth: 0, flex: 1, overflow: 'hidden' }}
+                    onClick={() => setShowInfoSidebar(prev => !prev)}
+                    title={showInfoSidebar ? "Clique para ocultar detalhes do contato" : "Clique para ver detalhes do contato"}
+                  >
+                <div
                   style={{
                     width: '40px',
                     height: '40px',
@@ -4337,20 +4407,20 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   }}
                 >
                   {selectedChat.profilePicUrl ? (
-                    <img 
-                      src={selectedChat.profilePicUrl} 
-                      alt="" 
+                    <img
+                      src={selectedChat.profilePicUrl}
+                      alt=""
                       referrerPolicy="no-referrer"
                       loading="lazy"
                       decoding="async"
                       onError={(e) => { e.target.style.display = 'none'; }}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   ) : (
                     (selectedChat.contactName || selectedChat.contactJid || 'C').charAt(0).toUpperCase()
                   )}
                   {getPresenceForJid(selectedChat.contactJid)?.presence === 'available' && (
-                    <span 
+                    <span
                       style={{
                         position: 'absolute',
                         bottom: '0px',
@@ -4548,7 +4618,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
                           {/* Criar Nova Nomenclatura Rápida */}
                           <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
-                            <form 
+                            <form
                               onSubmit={(e) => {
                                 e.preventDefault();
                                 handleSaveUserTag();
@@ -4703,7 +4773,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               </div>
 
               {/* Ações de Atendimento */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '4px' : '8px', flexShrink: 0 }}>
                 {/* Botão Transferir Atendimento */}
                 <button
                   type="button"
@@ -4711,48 +4781,64 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   className="btn"
                   style={{
                     fontSize: '0.78rem',
-                    padding: '7px 12px',
+                    padding: isMobile ? '6px 8px' : '7px 12px',
                     borderRadius: '8px',
                     background: 'rgba(59, 130, 246, 0.12)',
                     color: '#60a5fa',
                     border: '1px solid rgba(59, 130, 246, 0.35)',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '4px',
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
-                  title="Transferir para outro atendente ou devolver para a fila geral"
+                  title="Transferir atendimento"
                 >
-                  <ArrowRightLeft size={14} /> Transferir
+                  <ArrowRightLeft size={14} />
+                  {!isMobile && <span>Transferir</span>}
                 </button>
 
                 {selectedChat.status === 'finished' ? (
-                  <button 
+                  <button
                     onClick={handleTakeOver}
                     className="btn btn-primary"
-                    style={{ fontSize: '0.8rem', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#10b981', borderColor: '#10b981' }}
-                    title="Iniciar um novo atendimento com este cliente (Gera novo protocolo e zera avaliação passada)"
+                    style={{ fontSize: '0.8rem', padding: isMobile ? '6px 10px' : '7px 14px', display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                    title="Iniciar novo atendimento"
                   >
-                    <Play size={15} /> Iniciar Novo Atendimento
+                    <Play size={15} />
+                    <span>{isMobile ? 'Novo' : 'Iniciar Novo Atendimento'}</span>
                   </button>
                 ) : selectedChat.status !== 'attending' ? (
-                  <button 
+                  <button
                     onClick={handleTakeOver}
                     className="btn btn-primary"
-                    style={{ fontSize: '0.8rem', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    style={{
+                      fontSize: '0.82rem',
+                      padding: isMobile ? '6px 10px' : '8px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      backgroundColor: '#10b981',
+                      borderColor: '#10b981',
+                      fontWeight: 700,
+                      boxShadow: '0 2px 10px rgba(16, 185, 129, 0.3)'
+                    }}
+                    title="Atender cliente agora"
                   >
-                    <User size={15} /> Assumir Atendimento
+                    <UserCheck size={16} />
+                    <span>{isMobile ? 'Atender' : 'Atender Cliente'}</span>
                   </button>
                 ) : null}
 
                 {selectedChat.status === 'attending' && (
-                  <button 
+                  <button
                     onClick={handleFinishChat}
                     className="btn btn-secondary"
-                    style={{ fontSize: '0.8rem', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    style={{ fontSize: '0.8rem', padding: isMobile ? '6px 10px' : '7px 14px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    title="Finalizar atendimento"
                   >
-                    <CheckCircle size={15} /> Finalizar Atendimento
+                    <CheckCircle size={15} />
+                    <span>{isMobile ? 'Finalizar' : 'Finalizar Atendimento'}</span>
                   </button>
                 )}
 
@@ -4795,7 +4881,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   </button>
 
                   {showThreeDotsMenu && (
-                    <div 
+                    <div
                       style={{
                         position: 'absolute',
                         top: 'calc(100% + 8px)',
@@ -5063,8 +5149,8 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
                 {inChatSearchQuery.trim() && (
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    {matchedMessageIds.length > 0 
-                      ? `${inChatCurrentIndex + 1} de ${matchedMessageIds.length}` 
+                    {matchedMessageIds.length > 0
+                      ? `${inChatCurrentIndex + 1} de ${matchedMessageIds.length}`
                       : 'Nenhum resultado'}
                   </span>
                 )}
@@ -5108,7 +5194,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
             {/* Banner de Agendamento Ativo para o Contato */}
             {pendingSchedules.length > 0 && (
-              <div 
+              <div
                 style={{
                   padding: '8px 20px',
                   backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -5151,7 +5237,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
             {/* Banner Informativo quando Atendimento está Finalizado */}
             {selectedChat.status === 'finished' && (
-              <div 
+              <div
                 style={{
                   padding: '10px 24px',
                   backgroundColor: 'rgba(100, 116, 139, 0.12)',
@@ -5193,7 +5279,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             )}
 
             {/* Timeline de Mensagens com Suporte a Drag & Drop de Arquivos */}
-            <div 
+            <div
               onDragOver={handleChatDragOver}
               onDragLeave={handleChatDragLeave}
               onDrop={handleChatDrop}
@@ -5226,7 +5312,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   </span>
                 </div>
               )}
-              <div 
+              <div
                 ref={messagesContainerRef}
                 onScroll={handleTimelineScroll}
                 style={{
@@ -5273,144 +5359,155 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                         </button>
                       </div>
                     )}
-                    {(messages.length > visibleMessageLimit ? messages.slice(messages.length - visibleMessageLimit) : messages).map((msg, index, arr) => {
-                      const prevMsg = index > 0 ? arr[index - 1] : null;
-                      const isFirstMsg = index === 0 && messages.length <= visibleMessageLimit;
-                    const isDifferentDay = prevMsg && msg.timestamp && prevMsg.timestamp && (
-                      new Date(msg.timestamp).toDateString() !== new Date(prevMsg.timestamp).toDateString()
-                    );
-                    const showDayDivider = (isFirstMsg || isDifferentDay) && msg.timestamp;
-                    const dayLabel = showDayDivider ? getDayDividerLabel(msg.timestamp) : null;
+                    {(() => {
+                      const visibleMessages = messages.length > visibleMessageLimit
+                        ? messages.slice(messages.length - visibleMessageLimit)
+                        : messages;
+                      let lastRenderedDate = null;
 
-                    const dayDividerEl = dayLabel ? (
-                      <div 
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'center',
-                          margin: '12px 0 6px 0',
-                          width: '100%',
-                          position: 'sticky',
-                          top: '4px',
-                          zIndex: 10,
-                          pointerEvents: 'none'
-                        }}
-                      >
-                        <div 
-                          style={{
-                            backgroundColor: '#18222d',
-                            color: '#94a3b8',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            padding: '4px 14px',
-                            borderRadius: '8px',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            letterSpacing: '0.5px',
-                            boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
-                            textTransform: 'uppercase'
-                          }}
-                        >
-                          {dayLabel}
-                        </div>
-                      </div>
-                    ) : null;
+                      return visibleMessages.map((msg, index) => {
+                        let showDayDivider = false;
+                        if (msg.timestamp) {
+                          const msgDate = new Date(msg.timestamp);
+                          if (!isNaN(msgDate.getTime())) {
+                            const dateKey = `${msgDate.getFullYear()}-${msgDate.getMonth()}-${msgDate.getDate()}`;
+                            if (dateKey !== lastRenderedDate) {
+                              showDayDivider = true;
+                              lastRenderedDate = dateKey;
+                            }
+                          }
+                        }
 
-                  const msgKey = msg.id || msg.timestamp || index;
-                  const isMatched = matchedMessageIds.includes(msgKey);
-                  const isCurrentSelectedMatch = matchedMessageIds[inChatCurrentIndex] === msgKey;
+                        const dayLabel = showDayDivider ? getDayDividerLabel(msg.timestamp) : null;
 
-                  const isMe = msg.role === 'assistant' || msg.role === 'attendant';
-                  const botNames = ['Suporte Zeplyn', 'IA', 'Assistente Virtual', 'Robô', 'Bot', selectedChat?.botName];
-                  const isAttendant = Boolean(msg.senderName && !botNames.includes(msg.senderName));
-                  const isBot = msg.role === 'assistant' && !isAttendant;
+                        const dayDividerEl = dayLabel ? (
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'center',
+                              margin: '18px 0 10px 0',
+                              width: '100%',
+                              pointerEvents: 'none',
+                              userSelect: 'none'
+                            }}
+                          >
+                            <div
+                              style={{
+                                backgroundColor: 'var(--bg-tertiary)',
+                                color: 'var(--text-muted)',
+                                border: '1px solid var(--border-subtle)',
+                                padding: '4px 14px',
+                                borderRadius: '12px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                letterSpacing: '0.5px',
+                                boxShadow: 'var(--shadow-sm)',
+                                textTransform: 'uppercase'
+                              }}
+                            >
+                              {dayLabel}
+                            </div>
+                          </div>
+                        ) : null;
 
-                  return (
-                    <ChatMessageItem
-                      key={msgKey}
-                      msg={msg}
-                      msgKey={msgKey}
-                      dayDividerEl={dayDividerEl}
-                      isMatched={isMatched}
-                      isCurrentSelectedMatch={isCurrentSelectedMatch}
-                      isMe={isMe}
-                      isBot={isBot}
-                      isAttendant={isAttendant}
-                      handleContextMenu={handleContextMenu}
-                      handleReact={handleReact}
-                      renderContent={renderMessageContent}
-                    />
-                  );
-                })}
+                        const msgKey = msg.id || msg.timestamp || index;
+                        const isMatched = matchedMessageIds.includes(msgKey);
+                        const isCurrentSelectedMatch = matchedMessageIds[inChatCurrentIndex] === msgKey;
+
+                        const isMe = msg.role === 'assistant' || msg.role === 'attendant';
+                        const botNames = ['Suporte Zeplyn', 'IA', 'Assistente Virtual', 'Robô', 'Bot', selectedChat?.botName];
+                        const isAttendant = Boolean(msg.senderName && !botNames.includes(msg.senderName));
+                        const isBot = msg.role === 'assistant' && !isAttendant;
+
+                        return (
+                          <ChatMessageItem
+                            key={msgKey}
+                            msg={msg}
+                            msgKey={msgKey}
+                            dayDividerEl={dayDividerEl}
+                            isMatched={isMatched}
+                            isCurrentSelectedMatch={isCurrentSelectedMatch}
+                            isMe={isMe}
+                            isBot={isBot}
+                            isAttendant={isAttendant}
+                            handleContextMenu={handleContextMenu}
+                            handleReact={handleReact}
+                            renderContent={renderMessageContent}
+                          />
+                        );
+                      });
+                    })()}
                   </>
                 )}
-              <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Botão Flutuante de Rolar para o Final da Conversa (ao lado inferior direito ao lado da barra de rolagem) */}
+              {showScrollBottom && (
+                <button
+                  type="button"
+                  onClick={handleScrollToBottomClick}
+                  className="animate-fade-in"
+                  style={{
+                    position: 'absolute',
+                    bottom: '18px',
+                    right: '20px',
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0,0,0,0.3)',
+                    cursor: 'pointer',
+                    zIndex: 30,
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
+                  }}
+                  title="Rolar para as mensagens mais recentes"
+                >
+                  <ChevronDown size={22} color="var(--primary)" />
+                  {unreadCountWhileScrolled > 0 && (
+                    <span
+                      className="animate-bounce"
+                      style={{
+                        position: 'absolute',
+                        top: '-5px',
+                        right: '-5px',
+                        backgroundColor: '#10b981',
+                        color: '#ffffff',
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        borderRadius: '12px',
+                        minWidth: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0 4px',
+                        border: '2px solid var(--bg-secondary)',
+                        boxShadow: '0 2px 6px rgba(16, 185, 129, 0.5)'
+                      }}
+                    >
+                      {unreadCountWhileScrolled}
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
 
-            {/* Botão Flutuante de Rolar para o Final da Conversa (ao lado inferior direito ao lado da barra de rolagem) */}
-            {showScrollBottom && (
-              <button
-                type="button"
-                onClick={handleScrollToBottomClick}
-                className="animate-fade-in"
-                style={{
-                  position: 'absolute',
-                  bottom: '18px',
-                  right: '20px',
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-subtle)',
-                  color: 'var(--primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 6px 18px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0,0,0,0.3)',
-                  cursor: 'pointer',
-                  zIndex: 30,
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.1)';
-                  e.currentTarget.style.borderColor = 'var(--primary)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                }}
-                title="Rolar para as mensagens mais recentes"
-              >
-                <ChevronDown size={22} color="var(--primary)" />
-                {unreadCountWhileScrolled > 0 && (
-                  <span 
-                    className="animate-bounce"
-                    style={{
-                      position: 'absolute',
-                      top: '-5px',
-                      right: '-5px',
-                      backgroundColor: '#10b981',
-                      color: '#ffffff',
-                      fontSize: '0.68rem',
-                      fontWeight: 800,
-                      borderRadius: '12px',
-                      minWidth: '20px',
-                      height: '20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '0 4px',
-                      border: '2px solid var(--bg-secondary)',
-                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.5)'
-                    }}
-                  >
-                    {unreadCountWhileScrolled}
-                  </span>
-                )}
-              </button>
-            )}
-          </div>
-
             {/* Input de Envio de Mensagem */}
-            <div 
+            <div
               style={{
                 padding: '16px 24px',
                 backgroundColor: 'var(--bg-secondary)',
@@ -5421,7 +5518,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             >
               {/* Feedback / Toast e Desfazer da IA */}
               {aiToast && (
-                <div 
+                <div
                   className="animate-fade-in"
                   style={{
                     display: 'flex',
@@ -5475,7 +5572,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 const hasThumbnail = (isSticker || isImage || isVideo) && media?.url;
 
                 return (
-                  <div 
+                  <div
                     className="animate-fade-in"
                     style={{
                       display: 'flex',
@@ -5513,32 +5610,32 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                       {hasThumbnail && (
-                        <div style={{ 
-                          width: '42px', 
-                          height: '42px', 
-                          borderRadius: '6px', 
-                          overflow: 'hidden', 
-                          backgroundColor: 'rgba(0,0,0,0.22)', 
-                          display: 'flex', 
-                          alignItems: 'center', 
+                        <div style={{
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '6px',
+                          overflow: 'hidden',
+                          backgroundColor: 'rgba(0,0,0,0.22)',
+                          display: 'flex',
+                          alignItems: 'center',
                           justifyContent: 'center',
                           border: '1px solid var(--border-subtle)'
                         }}>
                           {isVideo ? (
                             <video src={media.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
                           ) : (
-                            <img 
-                              src={media.url} 
-                              alt="Miniatura" 
-                              style={{ width: '100%', height: '100%', objectFit: isSticker ? 'contain' : 'cover' }} 
+                            <img
+                              src={media.url}
+                              alt="Miniatura"
+                              style={{ width: '100%', height: '100%', objectFit: isSticker ? 'contain' : 'cover' }}
                             />
                           )}
                         </div>
                       )}
 
-                      <button 
-                        type="button" 
-                        onClick={() => setReplyingTo(null)} 
+                      <button
+                        type="button"
+                        onClick={() => setReplyingTo(null)}
                         className="btn-icon"
                         title="Cancelar resposta"
                         style={{ width: '26px', height: '26px', minWidth: '26px' }}
@@ -5552,7 +5649,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
               {/* Popover de Emojis */}
               {showEmojiPicker && (
-                <div 
+                <div
                   className="glass-panel animate-fade-in"
                   style={{
                     position: 'absolute',
@@ -5597,7 +5694,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
               {/* Popover de Figurinhas (Stickers) */}
               {showStickerPicker && (
-                <div 
+                <div
                   className="glass-panel animate-fade-in"
                   style={{
                     position: 'absolute',
@@ -5635,12 +5732,12 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                         <RefreshCw size={14} className={syncingStickers ? 'animate-spin' : ''} />
                       </button>
 
-                      <input 
-                        type="file" 
-                        ref={stickerInputRef} 
-                        onChange={handleUploadSticker} 
-                        accept="image/webp,image/png,image/jpeg,image/jpg" 
-                        style={{ display: 'none' }} 
+                      <input
+                        type="file"
+                        ref={stickerInputRef}
+                        onChange={handleUploadSticker}
+                        accept="image/webp,image/png,image/jpeg,image/jpg"
+                        style={{ display: 'none' }}
                       />
                       <button
                         type="button"
@@ -5654,8 +5751,8 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                         {uploadingSticker ? 'Convertendo...' : 'Nova'}
                       </button>
 
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={() => setShowStickerPicker(false)}
                         className="btn-icon"
                         style={{ width: '24px', height: '24px' }}
@@ -5774,7 +5871,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
               {/* Menu Flutuante de Respostas Rápidas & Atalhos com / */}
               {showQuickDropdown && (
-                <div 
+                <div
                   className="glass-panel animate-fade-in"
                   style={{
                     position: 'absolute',
@@ -5793,7 +5890,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   }}
                 >
                   {/* Top Bar do Menu */}
-                  <div 
+                  <div
                     style={{
                       padding: '10px 14px',
                       borderBottom: '1px solid var(--border-subtle)',
@@ -5829,7 +5926,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   </div>
 
                   {/* Filtro de Categorias */}
-                  <div 
+                  <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -5892,7 +5989,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                             }}
                             onMouseEnter={() => setSlashSelectedIndex(idx)}
                           >
-                            <span 
+                            <span
                               style={{
                                 backgroundColor: isSelected ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.06)',
                                 color: isSelected ? '#93c5fd' : '#60a5fa',
@@ -5918,13 +6015,13 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                                   </span>
                                 )}
                               </div>
-                              <div 
-                                style={{ 
-                                  fontSize: '0.78rem', 
-                                  color: isSelected ? '#e2e8f0' : 'var(--text-muted)', 
-                                  whiteSpace: 'nowrap', 
-                                  overflow: 'hidden', 
-                                  textOverflow: 'ellipsis' 
+                              <div
+                                style={{
+                                  fontSize: '0.78rem',
+                                  color: isSelected ? '#e2e8f0' : 'var(--text-muted)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
                                 }}
                               >
                                 {preview}
@@ -5940,7 +6037,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
               {/* Menu Flutuante do Catálogo de Produtos da Empresa */}
               {showProductCatalog && (
-                <div 
+                <div
                   className="glass-panel animate-fade-in"
                   style={{
                     position: 'absolute',
@@ -5959,7 +6056,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   }}
                 >
                   {/* Top Bar do Catálogo */}
-                  <div 
+                  <div
                     style={{
                       padding: '12px 16px',
                       borderBottom: '1px solid var(--border-subtle)',
@@ -6068,9 +6165,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                         const term = chatProductSearch.trim().toLowerCase();
                         if (!term) return true;
                         return (p.name || '').toLowerCase().includes(term) ||
-                               (p.sku || '').toLowerCase().includes(term) ||
-                               (p.category || '').toLowerCase().includes(term) ||
-                               (p.description || '').toLowerCase().includes(term);
+                          (p.sku || '').toLowerCase().includes(term) ||
+                          (p.category || '').toLowerCase().includes(term) ||
+                          (p.description || '').toLowerCase().includes(term);
                       });
 
                       if (filtered.length === 0) {
@@ -6082,8 +6179,8 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                       }
 
                       return filtered.map(prod => {
-                        const prodImages = Array.isArray(prod.images) && prod.images.length > 0 
-                          ? prod.images 
+                        const prodImages = Array.isArray(prod.images) && prod.images.length > 0
+                          ? prod.images
                           : (prod.imageUrl ? [prod.imageUrl] : []);
                         const cover = prodImages[0] || null;
                         const formattedPrice = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parseFloat(prod.price) || 0);
@@ -6276,7 +6373,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
               {/* Modo de Gravação de Áudio OU Modo de Texto */}
               {isRecording ? (
-                <div 
+                <div
                   className="animate-fade-in"
                   style={{
                     display: 'flex',
@@ -6308,7 +6405,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                     <Mic size={13} style={{ color: '#ef4444' }} />
                     <span>Nota de voz nativa (Push-to-Talk)</span>
                   </div>
-                  
+
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <button
                       type="button"
@@ -6345,7 +6442,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               ) : inputMode === 'internal_note' ? (
                 /* FORMULÁRIO EXCLUSIVO: NOTA INTERNA PRIVADA */
                 <form onSubmit={handleSendMessage} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div 
+                  <div
                     style={{
                       width: '38px',
                       height: '38px',
@@ -6406,205 +6503,205 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 </form>
               ) : (
                 /* FORMULÁRIO PADRÃO: MENSAGEM WHATSAPP */
-                  <form onSubmit={handleSendMessage} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleFileUpload} 
-                      style={{ display: 'none' }} 
-                    />
-                    {/* Menu Unificado de Anexos e Recursos (+) */}
-                    <div style={{ position: 'relative' }} ref={attachMenuRef}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowAttachMenu(prev => !prev);
-                          setShowEmojiPicker(false);
-                          setShowQuickDropdown(false);
-                          setShowStickerPicker(false);
-                          setShowProductCatalog(false);
-                        }}
-                        className="btn-icon"
-                        style={{
-                          backgroundColor: showAttachMenu ? 'rgba(59, 130, 246, 0.22)' : 'rgba(255, 255, 255, 0.05)',
-                          color: showAttachMenu ? 'var(--primary)' : 'var(--text-main)',
-                          borderRadius: '8px',
-                          width: '34px',
-                          height: '34px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          border: '1px solid var(--border-subtle)',
-                          transition: 'all 0.2s ease'
-                        }}
-                        title="Anexar arquivos, produtos ou atalhos (+)"
-                      >
-                        <Plus size={19} style={{ transform: showAttachMenu ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }} />
-                      </button>
-
-                      {showAttachMenu && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            bottom: replyingTo ? '145px' : '52px',
-                            left: 0,
-                            width: '270px',
-                            backgroundColor: 'var(--bg-secondary)',
-                            border: '1px solid var(--border-subtle)',
-                            borderRadius: '12px',
-                            boxShadow: '0 16px 38px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25)',
-                            padding: '6px',
-                            zIndex: 1000,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '4px',
-                            backdropFilter: 'blur(12px)',
-                            animation: 'fadeIn 0.15s ease'
-                          }}
-                        >
-                          {/* 1. Catálogo de Produtos */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowAttachMenu(false);
-                              setShowProductCatalog(true);
-                              loadChatProducts();
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '12px',
-                              width: '100%',
-                              padding: '9px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: 'rgba(99, 102, 241, 0.12)',
-                              border: '1px solid rgba(99, 102, 241, 0.25)',
-                              color: '#818cf8',
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              transition: 'all 0.15s ease'
-                            }}
-                          >
-                            <Package size={18} style={{ flexShrink: 0 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>Catálogo de Produtos</div>
-                              <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>Enviar fotos, preços e links</div>
-                            </div>
-                          </button>
-
-                          {/* 2. Respostas Rápidas */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowAttachMenu(false);
-                              setShowQuickDropdown(true);
-                              setSlashQuery('');
-                              setSlashSelectedIndex(0);
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '12px',
-                              width: '100%',
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: 'transparent',
-                              border: 'none',
-                              color: 'var(--text-main)',
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              transition: 'background 0.15s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                          >
-                            <Zap size={18} color="#eab308" style={{ flexShrink: 0 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>Respostas Rápidas</div>
-                              <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>Modelos salvos ou digite /</div>
-                            </div>
-                          </button>
-
-                          {/* 3. Fotos e Documentos */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowAttachMenu(false);
-                              fileInputRef.current?.click();
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '12px',
-                              width: '100%',
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: 'transparent',
-                              border: 'none',
-                              color: 'var(--text-main)',
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              transition: 'background 0.15s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                          >
-                            <Paperclip size={18} color="#3b82f6" style={{ flexShrink: 0 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>Fotos e Documentos</div>
-                              <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>Enviar arquivo do computador</div>
-                            </div>
-                          </button>
-
-                          {/* 4. Figurinhas */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowAttachMenu(false);
-                              setShowStickerPicker(true);
-                              loadStickers();
-                            }}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '12px',
-                              width: '100%',
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: 'transparent',
-                              border: 'none',
-                              color: 'var(--text-main)',
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              transition: 'background 0.15s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                          >
-                            <Sticker size={18} color="#10b981" style={{ flexShrink: 0 }} />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>Figurinhas (Stickers)</div>
-                              <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>Enviar stickers do WhatsApp</div>
-                            </div>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Botão Emoji */}
+                <form onSubmit={handleSendMessage} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    style={{ display: 'none' }}
+                  />
+                  {/* Menu Unificado de Anexos e Recursos (+) */}
+                  <div style={{ position: 'relative' }} ref={attachMenuRef}>
                     <button
                       type="button"
                       onClick={() => {
-                        setShowEmojiPicker(!showEmojiPicker);
-                        setShowStickerPicker(false);
+                        setShowAttachMenu(prev => !prev);
+                        setShowEmojiPicker(false);
                         setShowQuickDropdown(false);
-                        setShowAttachMenu(false);
+                        setShowStickerPicker(false);
+                        setShowProductCatalog(false);
                       }}
                       className="btn-icon"
-                      title="Inserir Emoji"
+                      style={{
+                        backgroundColor: showAttachMenu ? 'rgba(59, 130, 246, 0.22)' : 'rgba(255, 255, 255, 0.05)',
+                        color: showAttachMenu ? 'var(--primary)' : 'var(--text-main)',
+                        borderRadius: '8px',
+                        width: '34px',
+                        height: '34px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: '1px solid var(--border-subtle)',
+                        transition: 'all 0.2s ease'
+                      }}
+                      title="Anexar arquivos, produtos ou atalhos (+)"
                     >
-                      <Smile size={18} color={showEmojiPicker ? 'var(--primary)' : undefined} />
+                      <Plus size={19} style={{ transform: showAttachMenu ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }} />
                     </button>
+
+                    {showAttachMenu && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: replyingTo ? '145px' : '52px',
+                          left: 0,
+                          width: '270px',
+                          backgroundColor: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: '12px',
+                          boxShadow: '0 16px 38px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25)',
+                          padding: '6px',
+                          zIndex: 1000,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          backdropFilter: 'blur(12px)',
+                          animation: 'fadeIn 0.15s ease'
+                        }}
+                      >
+                        {/* 1. Catálogo de Produtos */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachMenu(false);
+                            setShowProductCatalog(true);
+                            loadChatProducts();
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            width: '100%',
+                            padding: '9px 12px',
+                            borderRadius: '8px',
+                            backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                            border: '1px solid rgba(99, 102, 241, 0.25)',
+                            color: '#818cf8',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <Package size={18} style={{ flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>Catálogo de Produtos</div>
+                            <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>Enviar fotos, preços e links</div>
+                          </div>
+                        </button>
+
+                        {/* 2. Respostas Rápidas */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachMenu(false);
+                            setShowQuickDropdown(true);
+                            setSlashQuery('');
+                            setSlashSelectedIndex(0);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-main)',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <Zap size={18} color="#eab308" style={{ flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>Respostas Rápidas</div>
+                            <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>Modelos salvos ou digite /</div>
+                          </div>
+                        </button>
+
+                        {/* 3. Fotos e Documentos */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachMenu(false);
+                            fileInputRef.current?.click();
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-main)',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <Paperclip size={18} color="#3b82f6" style={{ flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>Fotos e Documentos</div>
+                            <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>Enviar arquivo do computador</div>
+                          </div>
+                        </button>
+
+                        {/* 4. Figurinhas */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAttachMenu(false);
+                            setShowStickerPicker(true);
+                            loadStickers();
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-main)',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <Sticker size={18} color="#10b981" style={{ flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.84rem' }}>Figurinhas (Stickers)</div>
+                            <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>Enviar stickers do WhatsApp</div>
+                          </div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Botão Emoji */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEmojiPicker(!showEmojiPicker);
+                      setShowStickerPicker(false);
+                      setShowQuickDropdown(false);
+                      setShowAttachMenu(false);
+                    }}
+                    className="btn-icon"
+                    title="Inserir Emoji"
+                  >
+                    <Smile size={18} color={showEmojiPicker ? 'var(--primary)' : undefined} />
+                  </button>
 
                   {/* Botão de Reescrever com IA */}
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -6716,56 +6813,60 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   />
 
                   {/* Botão de Ditado por Voz Nativo (Web Speech API - 100% Sem IA / Grátis) */}
-                  <button
-                    type="button"
-                    onClick={toggleDictation}
-                    className="btn-icon"
-                    title={isDictating ? "Parar ditado por voz" : "Ditar mensagem por voz (Web Speech API do Navegador - 100% Grátis / Sem IA)"}
-                    style={{
-                      height: '38px',
-                      width: '38px',
-                      minWidth: '38px',
-                      color: isDictating ? '#ef4444' : 'var(--text-muted)',
-                      backgroundColor: isDictating ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
-                      border: isDictating ? '1px solid rgba(239, 68, 68, 0.4)' : undefined,
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <Mic size={17} className={isDictating ? 'recording-pulse-dot' : ''} />
-                  </button>
+                  {!isMobile && (
+                    <button
+                      type="button"
+                      onClick={toggleDictation}
+                      className="btn-icon hide-on-mobile"
+                      title={isDictating ? "Parar ditado por voz" : "Ditar mensagem por voz"}
+                      style={{
+                        height: '38px',
+                        width: '38px',
+                        minWidth: '38px',
+                        color: isDictating ? '#ef4444' : 'var(--text-muted)',
+                        backgroundColor: isDictating ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                        border: isDictating ? '1px solid rgba(239, 68, 68, 0.4)' : undefined,
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Mic size={17} className={isDictating ? 'recording-pulse-dot' : ''} />
+                    </button>
+                  )}
 
                   {/* Botão de Agendamento de Mensagens / Lembretes */}
-                  <button
-                    type="button"
-                    onClick={handleOpenScheduleModal}
-                    className="btn-icon"
-                    title="Agendar Mensagem / Lembrete para este cliente"
-                    style={{
-                      height: '38px',
-                      width: '38px',
-                      minWidth: '38px',
-                      color: pendingSchedules.length > 0 ? '#f59e0b' : 'var(--text-muted)',
-                      backgroundColor: pendingSchedules.length > 0 ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
-                      border: pendingSchedules.length > 0 ? '1px solid rgba(245, 158, 11, 0.35)' : undefined,
-                      position: 'relative',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <Clock size={17} />
-                    {pendingSchedules.length > 0 && (
-                      <span 
-                        style={{
-                          position: 'absolute',
-                          top: '4px',
-                          right: '4px',
-                          width: '7px',
-                          height: '7px',
-                          borderRadius: '50%',
-                          backgroundColor: '#f59e0b'
-                        }}
-                      />
-                    )}
-                  </button>
+                  {!isMobile && (
+                    <button
+                      type="button"
+                      onClick={handleOpenScheduleModal}
+                      className="btn-icon hide-on-mobile"
+                      title="Agendar Mensagem / Lembrete para este cliente"
+                      style={{
+                        height: '38px',
+                        width: '38px',
+                        minWidth: '38px',
+                        color: pendingSchedules.length > 0 ? '#f59e0b' : 'var(--text-muted)',
+                        backgroundColor: pendingSchedules.length > 0 ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                        border: pendingSchedules.length > 0 ? '1px solid rgba(245, 158, 11, 0.35)' : undefined,
+                        position: 'relative',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Clock size={17} />
+                      {pendingSchedules.length > 0 && (
+                        <span
+                          style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            backgroundColor: '#f59e0b'
+                          }}
+                        />
+                      )}
+                    </button>
+                  )}
 
                   {inputText.trim() ? (
                     <button
@@ -6798,7 +6899,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                     </button>
                   )}
                 </form>
-            )}
+              )}
             </div>
           </>
         ) : (
@@ -6809,15 +6910,21 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
           </div>
         )}
       </div>
+      )}
 
       {/* Coluna 3: Drawer de Informações do Contato */}
       {selectedChat && showInfoSidebar && (
-        <div 
+        <div
+          className="chat-info-sidebar"
           style={{
-            width: '330px',
+            width: isMobile ? '100%' : '330px',
+            position: isMobile ? 'fixed' : 'relative',
+            inset: isMobile ? 0 : 'auto',
+            zIndex: isMobile ? 120 : 'auto',
+            height: '100%',
             backgroundColor: 'var(--bg-secondary)',
-            borderLeft: '1px solid var(--border-subtle)',
-            padding: '20px 16px',
+            borderLeft: isMobile ? 'none' : '1px solid var(--border-subtle)',
+            padding: isMobile ? '16px 14px' : '20px 16px',
             display: 'flex',
             flexDirection: 'column',
             gap: '16px',
@@ -6831,19 +6938,19 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               <span>Detalhes do Contato</span>
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button 
+              <button
                 type="button"
-                onClick={handleOpenEditContactModal} 
-                className="btn-icon" 
+                onClick={handleOpenEditContactModal}
+                className="btn-icon"
                 title="Editar nome do contato"
                 style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid var(--border-subtle)', backgroundColor: 'var(--bg-primary)' }}
               >
                 <Edit2 size={14} />
               </button>
-              <button 
+              <button
                 type="button"
-                onClick={() => setShowInfoSidebar(false)} 
-                className="btn-icon" 
+                onClick={() => setShowInfoSidebar(false)}
+                className="btn-icon"
                 title="Fechar detalhes"
                 style={{ width: '30px', height: '30px', borderRadius: '8px' }}
               >
@@ -6853,7 +6960,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
           </div>
 
           {/* Card Principal do Contato (Avatar Central, Status Dot, Nome, Telefone BR, JID/LID) */}
-          <div 
+          <div
             style={{
               backgroundColor: 'var(--bg-primary)',
               borderRadius: '16px',
@@ -6865,7 +6972,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Botão de Editar no Canto Superior Direito (Estilo WhatsApp do Print) */}
-            <button 
+            <button
               type="button"
               onClick={handleOpenEditContactModal}
               title="Editar nome salvo no WhatsApp"
@@ -6893,7 +7000,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
             {/* Avatar Central Grande com Badge de Status (Red/Green Dot) */}
             <div style={{ position: 'relative', width: '84px', height: '84px', margin: '0 auto 12px auto' }}>
-              <div 
+              <div
                 style={{
                   width: '100%',
                   height: '100%',
@@ -6911,14 +7018,14 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 }}
               >
                 {selectedChat.profilePicUrl ? (
-                  <img 
-                    src={selectedChat.profilePicUrl} 
-                    alt="" 
+                  <img
+                    src={selectedChat.profilePicUrl}
+                    alt=""
                     referrerPolicy="no-referrer"
                     loading="lazy"
                     decoding="async"
                     onError={(e) => { e.target.style.display = 'none'; }}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                 ) : (
                   (selectedChat.contactName || selectedChat.name || 'C').charAt(0).toUpperCase()
@@ -6926,7 +7033,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               </div>
 
               {/* Ponto Indicador de Status no Canto Inferior Direito do Avatar */}
-              <span 
+              <span
                 title={selectedChat.status === 'attending' ? 'Em Atendimento' : 'Aguardando / Disponível'}
                 style={{
                   position: 'absolute',
@@ -6943,11 +7050,11 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Nome do Contato em Negrito */}
-            <h3 
-              style={{ 
-                fontSize: '1.15rem', 
-                fontWeight: 700, 
-                color: 'var(--text-main)', 
+            <h3
+              style={{
+                fontSize: '1.15rem',
+                fontWeight: 700,
+                color: 'var(--text-main)',
                 margin: '0 0 6px 0',
                 lineHeight: 1.25,
                 wordBreak: 'break-word'
@@ -6957,14 +7064,14 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </h3>
 
             {/* Telefone Formatado com Bandeira do Brasil 🇧🇷 */}
-            <div 
-              style={{ 
-                fontSize: '0.88rem', 
-                fontWeight: 600, 
+            <div
+              style={{
+                fontSize: '0.88rem',
+                fontWeight: 600,
                 color: 'var(--text-secondary)',
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 gap: '6px',
                 marginBottom: '4px'
               }}
@@ -6974,10 +7081,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Identificador JID / LID do WhatsApp */}
-            <div 
-              style={{ 
-                fontSize: '0.78rem', 
-                color: 'var(--text-muted)', 
+            <div
+              style={{
+                fontSize: '0.78rem',
+                color: 'var(--text-muted)',
                 fontFamily: 'monospace',
                 opacity: 0.85,
                 wordBreak: 'break-all'
@@ -6988,7 +7095,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Bloco de Atendente Responsável e Transferência */}
-            <div 
+            <div
               style={{
                 marginTop: '14px',
                 padding: '12px 14px',
@@ -7067,7 +7174,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
           </div>
 
           {/* Barra de Filtro de Mídias com Badges Verdes (Áudio, Imagem, Vídeo, Docs, Links, Outros) */}
-          <div 
+          <div
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(6, 1fr)',
@@ -7110,7 +7217,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     <IconComp size={18} style={{ color: item.color }} />
                     {item.count > 0 && (
-                      <span 
+                      <span
                         style={{
                           position: 'absolute',
                           top: '-6px',
@@ -7134,10 +7241,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                       </span>
                     )}
                   </div>
-                  <span 
-                    style={{ 
-                      fontSize: '0.68rem', 
-                      color: isActive ? 'var(--primary)' : 'var(--text-secondary)', 
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
                       fontWeight: isActive ? 700 : 500,
                       marginTop: '5px',
                       whiteSpace: 'nowrap',
@@ -7155,7 +7262,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
           {/* Visualizador de Galeria quando uma aba de mídia está ativa */}
           {activeMediaTab && (
-            <div 
+            <div
               className="glass-panel animate-fade-in"
               style={{
                 backgroundColor: 'var(--bg-primary)',
@@ -7176,10 +7283,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   {activeMediaTab === 'link' && `🔗 Links Compartilhados (${contactMedia.links.length})`}
                   {activeMediaTab === 'other' && `💬 Outros Compartilhados (${contactMedia.others.length})`}
                 </span>
-                <button 
-                  type="button" 
-                  onClick={() => setActiveMediaTab(null)} 
-                  className="btn-icon" 
+                <button
+                  type="button"
+                  onClick={() => setActiveMediaTab(null)}
+                  className="btn-icon"
                   style={{ width: '22px', height: '22px' }}
                 >
                   <X size={13} />
@@ -7211,20 +7318,20 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
                     {contactMedia.images.map((img, i) => (
-                      <a 
-                        key={img.id || i} 
-                        href={img.url} 
-                        target="_blank" 
+                      <a
+                        key={img.id || i}
+                        href={img.url}
+                        target="_blank"
                         rel="noopener noreferrer"
                         style={{ display: 'block', borderRadius: '6px', overflow: 'hidden', height: '70px', border: '1px solid var(--border-subtle)', position: 'relative' }}
                       >
-                        <img 
-                          src={img.url} 
-                          alt="Mídia" 
+                        <img
+                          src={img.url}
+                          alt="Mídia"
                           loading="lazy"
                           decoding="async"
                           referrerPolicy="no-referrer"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       </a>
                     ))}
@@ -7252,10 +7359,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {contactMedia.docs.map((doc, i) => (
-                      <a 
-                        key={doc.id || i} 
-                        href={doc.url} 
-                        target="_blank" 
+                      <a
+                        key={doc.id || i}
+                        href={doc.url}
+                        target="_blank"
                         rel="noopener noreferrer"
                         style={{
                           display: 'flex',
@@ -7286,10 +7393,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {contactMedia.links.map((lnk, i) => (
-                      <a 
-                        key={lnk.id || i} 
-                        href={lnk.url} 
-                        target="_blank" 
+                      <a
+                        key={lnk.id || i}
+                        href={lnk.url}
+                        target="_blank"
                         rel="noopener noreferrer"
                         style={{
                           display: 'flex',
@@ -7478,7 +7585,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       {/* MODAL DE VISUALIZAÇÃO DE PDF EM TELA CHEIA */}
       {viewingPdfModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -7491,7 +7598,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             padding: '20px'
           }}
         >
-          <div 
+          <div
             className="glass-panel animate-fade-in"
             style={{
               width: '100%',
@@ -7507,7 +7614,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Header */}
-            <div 
+            <div
               style={{
                 padding: '16px 22px',
                 borderBottom: '1px solid var(--border-subtle)',
@@ -7518,7 +7625,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                <div 
+                <div
                   style={{
                     width: '36px',
                     height: '36px',
@@ -7560,9 +7667,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 >
                   <ExternalLink size={14} /> Nova Aba
                 </a>
-                <button 
-                  onClick={() => setViewingPdfModal(null)} 
-                  className="btn-icon" 
+                <button
+                  onClick={() => setViewingPdfModal(null)}
+                  className="btn-icon"
                   style={{ width: '32px', height: '32px' }}
                 >
                   <X size={18} />
@@ -7584,7 +7691,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       {/* MODAL DE TRANSFERÊNCIA DE ATENDIMENTO */}
       {showTransferModal && chatToTransfer && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -7602,7 +7709,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }
           }}
         >
-          <div 
+          <div
             className="glass-panel animate-fade-in"
             style={{
               width: '100%',
@@ -7618,7 +7725,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Header do Modal */}
-            <div 
+            <div
               style={{
                 padding: '18px 24px',
                 borderBottom: '1px solid var(--border-subtle)',
@@ -7629,7 +7736,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div 
+                <div
                   style={{
                     width: '40px',
                     height: '40px',
@@ -7667,7 +7774,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
             {/* Conteúdo com Scroll */}
             <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              
+
               {/* Destino da Transferência */}
               <div>
                 <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '10px', display: 'block' }}>
@@ -7675,15 +7782,15 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 </label>
 
                 {/* Abas Segmentadas: Setor / Atendente / Fila Geral */}
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '1fr 1fr 1fr', 
-                  gap: '6px', 
-                  marginBottom: '14px', 
-                  backgroundColor: 'var(--bg-secondary)', 
-                  padding: '4px', 
-                  borderRadius: '10px', 
-                  border: '1px solid var(--border-subtle)' 
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr',
+                  gap: '6px',
+                  marginBottom: '14px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  padding: '4px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-subtle)'
                 }}>
                   <button
                     type="button"
@@ -7854,7 +7961,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                     </div>
 
                     {/* Campo de Busca de Atendente */}
-                    <div 
+                    <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -7882,8 +7989,8 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                         }}
                       />
                       {transferSearch && (
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setTransferSearch('')}
                           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}
                         >
@@ -7893,7 +8000,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                     </div>
 
                     {/* Lista de Atendentes */}
-                    <div 
+                    <div
                       style={{
                         maxHeight: '170px',
                         overflowY: 'auto',
@@ -7934,7 +8041,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                               }}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                                <div 
+                                <div
                                   style={{
                                     width: '32px',
                                     height: '32px',
@@ -7974,7 +8081,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                               </div>
 
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                <span 
+                                <span
                                   style={{
                                     fontSize: '0.68rem',
                                     padding: '2px 6px',
@@ -7988,7 +8095,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                                   {att.isAvailable !== false ? '🟢 Disponível' : '🟠 Pausado'}
                                 </span>
 
-                                <span 
+                                <span
                                   style={{
                                     fontSize: '0.7rem',
                                     padding: '2px 7px',
@@ -8018,7 +8125,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
                 {/* Painel: Fila Geral de Espera */}
                 {transferType === 'queue' && (
-                  <div 
+                  <div
                     onClick={() => setSelectedTargetAttendantId('queue')}
                     style={{
                       padding: '14px 16px',
@@ -8030,7 +8137,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                       gap: '14px'
                     }}
                   >
-                    <div 
+                    <div
                       style={{
                         width: '40px',
                         height: '40px',
@@ -8087,7 +8194,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               </div>
 
               {/* Opção de Notificar Cliente no WhatsApp */}
-              <label 
+              <label
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -8116,7 +8223,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Rodapé com Botões */}
-            <div 
+            <div
               style={{
                 padding: '14px 24px',
                 borderTop: '1px solid var(--border-subtle)',
@@ -8180,7 +8287,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       {/* MODAL DE RESUMO INTELIGENTE COM IA */}
       {showSummaryModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -8193,7 +8300,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             padding: '20px'
           }}
         >
-          <div 
+          <div
             className="glass-panel animate-fade-in"
             style={{
               width: '100%',
@@ -8208,7 +8315,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Header do Modal */}
-            <div 
+            <div
               style={{
                 padding: '18px 24px',
                 borderBottom: '1px solid var(--border-subtle)',
@@ -8219,7 +8326,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div 
+                <div
                   style={{
                     width: '40px',
                     height: '40px',
@@ -8244,9 +8351,9 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 </div>
               </div>
 
-              <button 
-                onClick={() => setShowSummaryModal(false)} 
-                className="btn-icon" 
+              <button
+                onClick={() => setShowSummaryModal(false)}
+                className="btn-icon"
                 style={{ width: '32px', height: '32px' }}
               >
                 <X size={18} />
@@ -8268,8 +8375,8 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               ) : summaryError ? (
                 <div style={{ padding: '20px', borderRadius: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', textAlign: 'center' }}>
                   <p style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: 600 }}>{summaryError}</p>
-                  <button 
-                    onClick={handleOpenSummary} 
+                  <button
+                    onClick={handleOpenSummary}
                     className="btn btn-secondary"
                     style={{ fontSize: '0.8rem', padding: '6px 14px' }}
                   >
@@ -8279,7 +8386,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               ) : summaryData ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {/* Card 1: Motivo do Contato */}
-                  <div 
+                  <div
                     style={{
                       padding: '14px 16px',
                       borderRadius: '12px',
@@ -8296,7 +8403,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   </div>
 
                   {/* Card 2: Histórico & Situação Atual */}
-                  <div 
+                  <div
                     style={{
                       padding: '14px 16px',
                       borderRadius: '12px',
@@ -8313,7 +8420,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   </div>
 
                   {/* Card 3: Próxima Ação Recomendada */}
-                  <div 
+                  <div
                     style={{
                       padding: '14px 16px',
                       borderRadius: '12px',
@@ -8333,7 +8440,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Rodapé de Ações */}
-            <div 
+            <div
               style={{
                 padding: '16px 24px',
                 borderTop: '1px solid var(--border-subtle)',
@@ -8394,7 +8501,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       {/* MODAL DE GERENCIAMENTO DE NOMENCLATURAS E STATUS (PERSONALIZADO POR USUÁRIO) */}
       {showManageTagsModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -8407,7 +8514,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             padding: '20px'
           }}
         >
-          <div 
+          <div
             className="glass-panel animate-fade-in"
             style={{
               width: '100%',
@@ -8422,7 +8529,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Header do Modal */}
-            <div 
+            <div
               style={{
                 padding: '18px 24px',
                 borderBottom: '1px solid var(--border-subtle)',
@@ -8433,7 +8540,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div 
+                <div
                   style={{
                     width: '38px',
                     height: '38px',
@@ -8457,12 +8564,12 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => {
                   setShowManageTagsModal(false);
                   handleCancelEditTag();
-                }} 
-                className="btn-icon" 
+                }}
+                className="btn-icon"
                 style={{ width: '32px', height: '32px' }}
               >
                 <X size={18} />
@@ -8472,7 +8579,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             {/* Conteúdo */}
             <div style={{ padding: '24px', maxHeight: '65vh', overflowY: 'auto' }}>
               {/* Formulário de Criação / Edição */}
-              <div 
+              <div
                 style={{
                   padding: '16px',
                   borderRadius: '12px',
@@ -8512,7 +8619,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                     </label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       {[
-                        '#ef4444', '#f59e0b', '#10b981', '#3b82f6', 
+                        '#ef4444', '#f59e0b', '#10b981', '#3b82f6',
                         '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'
                       ].map(colorHex => (
                         <button
@@ -8693,7 +8800,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Rodapé */}
-            <div 
+            <div
               style={{
                 padding: '14px 24px',
                 borderTop: '1px solid var(--border-subtle)',
@@ -8722,7 +8829,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
       {/* MODAL: AGENDAMENTO DE MENSAGENS & LEMBRETES             */}
       {/* ======================================================== */}
       {showScheduleModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -8735,7 +8842,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             padding: '20px'
           }}
         >
-          <div 
+          <div
             className="card animate-scale-up"
             style={{
               width: '100%',
@@ -8751,7 +8858,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Cabeçalho */}
-            <div 
+            <div
               style={{
                 padding: '18px 24px',
                 borderBottom: '1px solid var(--border-subtle)',
@@ -8762,7 +8869,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div 
+                <div
                   style={{
                     width: '36px',
                     height: '36px',
@@ -8808,7 +8915,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {pendingSchedules.map(item => (
-                      <div 
+                      <div
                         key={item.id}
                         style={{
                           padding: '10px 14px',
@@ -8827,7 +8934,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                               📅 {new Date(item.scheduledAt).toLocaleString([], { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </span>
                             {item.cancelIfCustomerReplies && (
-                              <span 
+                              <span
                                 style={{
                                   fontSize: '0.66rem',
                                   padding: '1px 6px',
@@ -8964,7 +9071,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 </div>
 
                 {/* Opção Inteligente de Auto-Cancelamento */}
-                <div 
+                <div
                   style={{
                     padding: '12px 14px',
                     borderRadius: '10px',
@@ -9018,7 +9125,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       {/* Modal de Dossiê / Comprovante Oficial de Atendimento */}
       {showDossierModal && (
-        <div 
+        <div
           className="modal-backdrop"
           style={{
             position: 'fixed',
@@ -9037,7 +9144,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             if (e.target === e.currentTarget) setShowDossierModal(false);
           }}
         >
-          <div 
+          <div
             className="modal-content"
             style={{
               backgroundColor: 'var(--bg-card, #1e293b)',
@@ -9053,7 +9160,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Modal Header */}
-            <div 
+            <div
               className="dossier-no-print"
               style={{
                 padding: '16px 24px',
@@ -9112,7 +9219,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 </div>
               ) : (
                 /* Print container */
-                <div 
+                <div
                   id="dossier-print-container"
                   style={{
                     backgroundColor: 'var(--bg-main, #0f172a)',
@@ -9136,7 +9243,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                      <div 
+                      <div
                         className="dossier-box"
                         style={{
                           display: 'inline-block',
@@ -9161,7 +9268,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   {/* Cards de Metadados: Cliente vs Atendimento */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '20px' }}>
                     {/* Dados do Cliente */}
-                    <div 
+                    <div
                       className="dossier-box"
                       style={{
                         padding: '14px',
@@ -9182,7 +9289,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                     </div>
 
                     {/* Dados do Atendente & CSAT */}
-                    <div 
+                    <div
                       className="dossier-box"
                       style={{
                         padding: '14px',
@@ -9198,7 +9305,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                         <div><strong>Operador:</strong> {dossierData.attendant?.name || 'IA / Automático'} {dossierData.attendant?.role ? `(${dossierData.attendant.role})` : ''}</div>
                         <div><strong>Email:</strong> {dossierData.attendant?.email || '-'}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                          <strong>Avaliação (CSAT):</strong> 
+                          <strong>Avaliação (CSAT):</strong>
                           {dossierData.csat?.rating ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '1px 7px', borderRadius: '4px', fontWeight: 700, fontSize: '0.78rem' }}>
                               <Star size={12} fill="#f59e0b" /> {dossierData.csat.rating}/5 estrelas
@@ -9231,14 +9338,14 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                         dossierData.messages.map((m, idx) => {
                           const msgTime = m.createdAt || m.timestamp;
                           const isFromMe = m.fromMe ?? (m.role === 'assistant' || m.role === 'operator' || m.role === 'system');
-                          const senderLabel = isFromMe 
-                            ? (m.senderName || dossierData.attendant?.name || 'Atendente / Empresa') 
+                          const senderLabel = isFromMe
+                            ? (m.senderName || dossierData.attendant?.name || 'Atendente / Empresa')
                             : (m.senderName || dossierData.client?.name || dossierData.contact?.name || 'Cliente');
                           const timeStr = msgTime ? new Date(msgTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
                           const dateStr = msgTime ? new Date(msgTime).toLocaleDateString('pt-BR') : '';
 
                           return (
-                            <div 
+                            <div
                               key={m.id || idx}
                               className={isFromMe ? 'dossier-bubble-attendant' : 'dossier-bubble-client'}
                               style={{
@@ -9264,7 +9371,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   </div>
 
                   {/* Assinatura Digital & Hash SHA-256 */}
-                  <div 
+                  <div
                     className="dossier-box"
                     style={{
                       padding: '14px',
@@ -9281,7 +9388,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                       <div style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-main)' }}>
                         Certificação de Integridade Criptográfica (SHA-256)
                       </div>
-                      <div 
+                      <div
                         className="dossier-hash"
                         style={{
                           fontSize: '0.68rem',
@@ -9306,7 +9413,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Modal Footer */}
-            <div 
+            <div
               className="dossier-no-print"
               style={{
                 padding: '14px 24px',
@@ -9339,7 +9446,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       {/* MODAL DE HISTÓRICO DE ATENDIMENTOS DO CLIENTE */}
       {showAttendanceHistoryModal && (
-        <div 
+        <div
           className="modal-backdrop"
           style={{
             position: 'fixed',
@@ -9356,7 +9463,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             if (e.target === e.currentTarget) setShowAttendanceHistoryModal(false);
           }}
         >
-          <div 
+          <div
             className="modal-content animate-fade-in"
             style={{
               backgroundColor: 'var(--bg-secondary, #1e293b)',
@@ -9372,7 +9479,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             }}
           >
             {/* Cabeçalho do Modal */}
-            <div 
+            <div
               style={{
                 padding: '18px 24px',
                 borderBottom: '1px solid var(--border-subtle)',
@@ -9383,7 +9490,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div 
+                <div
                   style={{
                     width: '42px',
                     height: '42px',
@@ -9400,7 +9507,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>Histórico de Atendimentos</span>
-                    <span 
+                    <span
                       style={{
                         fontSize: '0.72rem',
                         fontWeight: 700,
@@ -9432,7 +9539,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Conteúdo / Timeline de Atendimentos */}
-            <div 
+            <div
               style={{
                 padding: '20px 24px',
                 overflowY: 'auto',
@@ -9448,7 +9555,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>Carregando histórico completo de atendimentos...</div>
                 </div>
               ) : attendanceHistoryList.length === 0 ? (
-                <div 
+                <div
                   style={{
                     padding: '50px 20px',
                     textAlign: 'center',
@@ -9472,7 +9579,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   const rating = att.csatRating;
 
                   return (
-                    <div 
+                    <div
                       key={att.id || att.protocol || index}
                       style={{
                         backgroundColor: isCurrent ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-primary)',
@@ -9486,7 +9593,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                       {/* Linha Superior: Protocolo, Status e Avaliação CSAT */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span 
+                          <span
                             style={{
                               fontFamily: 'monospace',
                               fontWeight: 700,
@@ -9571,7 +9678,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                         {/* Avaliação CSAT */}
                         <div>
                           {rating ? (
-                            <div 
+                            <div
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -9602,7 +9709,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                       </div>
 
                       {/* Bloco de Métricas do Atendimento */}
-                      <div 
+                      <div
                         style={{
                           display: 'grid',
                           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -9652,7 +9759,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
                       {/* Comentário CSAT (se houver) */}
                       {att.csatComment && (
-                        <div 
+                        <div
                           style={{
                             marginTop: '10px',
                             padding: '8px 12px',
@@ -9714,7 +9821,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
                       {/* Caixa Expansível de Mensagens deste Atendimento */}
                       {isExpanded && (
-                        <div 
+                        <div
                           style={{
                             marginTop: '12px',
                             padding: '12px',
@@ -9744,7 +9851,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                               }
 
                               return (
-                                <div 
+                                <div
                                   key={m.id || mIdx}
                                   style={{
                                     display: 'flex',
@@ -9752,7 +9859,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                                     alignItems: isClient ? 'flex-start' : 'flex-end'
                                   }}
                                 >
-                                  <div 
+                                  <div
                                     style={{
                                       maxWidth: '75%',
                                       padding: '8px 12px',
@@ -9789,7 +9896,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             </div>
 
             {/* Rodapé do Modal */}
-            <div 
+            <div
               style={{
                 padding: '14px 24px',
                 borderTop: '1px solid var(--border-subtle)',
@@ -9812,7 +9919,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       {/* MODAL DE EDIÇÃO DE NOME DO CONTATO */}
       {showEditContactModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -9825,7 +9932,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             padding: '20px'
           }}
         >
-          <div 
+          <div
             className="glass-panel animate-fade-in"
             style={{
               width: '100%',
@@ -9851,10 +9958,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   </span>
                 </div>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setShowEditContactModal(false)} 
-                className="btn-icon" 
+              <button
+                type="button"
+                onClick={() => setShowEditContactModal(false)}
+                className="btn-icon"
                 style={{ width: '30px', height: '30px' }}
               >
                 <X size={16} />
@@ -9866,7 +9973,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Nome Identificador
                 </label>
-                <input 
+                <input
                   type="text"
                   value={editingContactName}
                   onChange={(e) => setEditingContactName(e.target.value)}
@@ -9891,16 +9998,16 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowEditContactModal(false)} 
+                <button
+                  type="button"
+                  onClick={() => setShowEditContactModal(false)}
                   className="btn btn-secondary"
                   disabled={savingContactName}
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn btn-primary"
                   disabled={savingContactName || !editingContactName.trim()}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -9916,7 +10023,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
       {/* MODAL DE AGENDAMENTO RÁPIDO NO CHAT */}
       {showQuickAptModal && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -9929,7 +10036,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
             padding: '20px'
           }}
         >
-          <div 
+          <div
             className="glass-panel animate-fade-in"
             style={{
               width: '100%',
@@ -9955,10 +10062,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   </span>
                 </div>
               </div>
-              <button 
-                type="button" 
-                onClick={() => setShowQuickAptModal(false)} 
-                className="btn-icon" 
+              <button
+                type="button"
+                onClick={() => setShowQuickAptModal(false)}
+                className="btn-icon"
                 style={{ width: '30px', height: '30px' }}
               >
                 <X size={16} />
@@ -9970,7 +10077,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Serviço / Assunto *
                 </label>
-                <input 
+                <input
                   type="text"
                   value={quickAptData.title}
                   onChange={(e) => setQuickAptData(prev => ({ ...prev, title: e.target.value }))}
@@ -9995,7 +10102,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     Data *
                   </label>
-                  <input 
+                  <input
                     type="date"
                     value={quickAptData.date}
                     onChange={(e) => setQuickAptData(prev => ({ ...prev, date: e.target.value }))}
@@ -10016,7 +10123,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                     Horário *
                   </label>
-                  <input 
+                  <input
                     type="time"
                     value={quickAptData.time}
                     onChange={(e) => setQuickAptData(prev => ({ ...prev, time: e.target.value }))}
@@ -10066,7 +10173,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                   Observações internas (opcional)
                 </label>
-                <textarea 
+                <textarea
                   value={quickAptData.notes}
                   onChange={(e) => setQuickAptData(prev => ({ ...prev, notes: e.target.value }))}
                   placeholder="Instruções para o dia, documentos a trazer, etc."
@@ -10086,7 +10193,7 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               </div>
 
               <div style={{ marginBottom: '18px', padding: '10px 12px', borderRadius: '10px', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <input 
+                <input
                   type="checkbox"
                   id="sendImmediateConfirmation"
                   checked={quickAptData.sendImmediateConfirmation}
@@ -10099,16 +10206,16 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowQuickAptModal(false)} 
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAptModal(false)}
                   className="btn btn-secondary"
                   disabled={savingQuickApt}
                 >
                   Cancelar
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="btn btn-primary"
                   disabled={savingQuickApt || !quickAptData.title.trim()}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#10b981', borderColor: '#10b981' }}

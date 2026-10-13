@@ -23,12 +23,13 @@ import {
   PhoneCall,
   Calendar,
   Package,
-  Radio
+  Radio,
+  X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ZeplynLogo from './ZeplynLogo';
 
-export default function Sidebar({ currentView, setCurrentView, collapsed, setCollapsed }) {
+export default function Sidebar({ currentView, setCurrentView, collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
   const { user, logout } = useAuth();
   const [hoveredItemId, setHoveredItemId] = useState(null);
   const [hoveredFooter, setHoveredFooter] = useState(false);
@@ -284,6 +285,7 @@ export default function Sidebar({ currentView, setCurrentView, collapsed, setCol
 
   return (
     <aside 
+      className={`app-sidebar ${mobileOpen ? 'mobile-open' : ''}`}
       style={{
         width: collapsed ? '72px' : '268px',
         minWidth: collapsed ? '72px' : '268px',
@@ -317,6 +319,22 @@ export default function Sidebar({ currentView, setCurrentView, collapsed, setCol
             subtitle="Enterprise v2.0" 
           />
         </div>
+
+        {/* Botão de Fechar no Celular */}
+        <button
+          type="button"
+          onClick={() => setMobileOpen?.(false)}
+          className="mobile-only btn-icon"
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            color: 'var(--text-muted)'
+          }}
+          title="Fechar navegação"
+        >
+          <X size={18} />
+        </button>
 
         {!collapsed && (
           <button 

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Sun, Moon, Bot, Bell, BellRing, BellOff, ArrowUp, Headphones, Coffee } from 'lucide-react';
+import { Sun, Moon, Bot, Bell, BellRing, BellOff, ArrowUp, Headphones, Coffee, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { socketService } from '../services/socket';
 import { desktopNotifications } from '../services/desktopNotifications';
 import { useCapsLock } from '../hooks/useCapsLock';
 
-export default function Header({ currentViewTitle }) {
+export default function Header({ currentViewTitle, onOpenMobileSidebar }) {
   const { theme, toggleTheme, socketOnline, selectedBotId, setSelectedBotId, isAvailable, updateAvailability } = useAuth();
   const [bots, setBots] = useState([]);
   const [updatingAvail, setUpdatingAvail] = useState(false);
@@ -108,9 +108,32 @@ export default function Header({ currentViewTitle }) {
         gap: '16px'
       }}
     >
-      {/* Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-main)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      {/* Title & Mobile Hamburger */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
+        <button
+          type="button"
+          onClick={onOpenMobileSidebar}
+          className="mobile-only btn-icon"
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '9px',
+            backgroundColor: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-main)',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer'
+          }}
+          title="Abrir menu lateral"
+          aria-label="Menu de navegação"
+        >
+          <Menu size={20} />
+        </button>
+
+        <h1 style={{ fontSize: '1.18rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-main)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {currentViewTitle}
         </h1>
 
@@ -132,7 +155,7 @@ export default function Header({ currentViewTitle }) {
               flexShrink: 0
             }}
             title="A tecla Caps Lock (Fixa) do teclado está ligada. Você está digitando em maiúsculas."
-            className="animate-fade-in"
+            className="animate-fade-in desktop-only"
           >
             <ArrowUp size={13} strokeWidth={3} />
             <span>FIXA ATIVADA</span>
@@ -141,9 +164,9 @@ export default function Header({ currentViewTitle }) {
       </div>
 
       {/* Action Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         {/* Bot Filter Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Bot size={18} color="var(--primary)" />
           <select
             value={selectedBotId}
@@ -172,8 +195,8 @@ export default function Header({ currentViewTitle }) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '6px 14px',
+            gap: '6px',
+            padding: '6px 10px',
             borderRadius: '9999px',
             backgroundColor: isAvailable ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
             border: `1.5px solid ${isAvailable ? 'rgba(16, 185, 129, 0.45)' : 'rgba(245, 158, 11, 0.45)'}`,
@@ -203,18 +226,19 @@ export default function Header({ currentViewTitle }) {
           {isAvailable ? (
             <>
               <Headphones size={14} />
-              <span>Disponível</span>
+              <span className="desktop-only">Disponível</span>
             </>
           ) : (
             <>
               <Coffee size={14} />
-              <span>Pausado</span>
+              <span className="desktop-only">Pausado</span>
             </>
           )}
         </button>
 
         {/* WebSocket Real-time Status */}
         <div 
+          className="desktop-only"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -244,7 +268,7 @@ export default function Header({ currentViewTitle }) {
         {/* Windows Desktop Notifications Toggle */}
         <button
           onClick={handleToggleNotifications}
-          className="btn-icon"
+          className="btn-icon desktop-only"
           title={
             notifPermission !== 'granted' 
               ? 'Ativar Notificações no Windows para clientes em espera' 

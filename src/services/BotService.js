@@ -5,7 +5,7 @@ function safeDecrypt(val) {
     if (!val || typeof val !== 'string') return null;
     let current = val;
     let rounds = 0;
-    while (current && typeof current === 'string' && current.includes(':') && rounds < 5) {
+    while (current && typeof current === 'string' && current.startsWith('gcm:') && rounds < 5) {
         const dec = decrypt(current);
         if (!dec || dec === current) break;
         current = dec;
@@ -27,9 +27,9 @@ async function getBot(botId) {
     const db = getDatabase();
     const res = await db.query('SELECT * FROM bots WHERE id = $1', [botId]);
     const bot = res.rows[0];
-    
+
     if (!bot) return null;
-    
+
     // Buscar QAs da tabela separada
     const qaRes = await db.query('SELECT * FROM bot_qa WHERE "botId" = $1 ORDER BY "createdAt" ASC', [botId]);
 
@@ -62,7 +62,7 @@ async function getBot(botId) {
  */
 async function createBot(botData) {
     const db = getDatabase();
-    
+
     const bot = {
         id: botData.id || `bot_${Date.now()}`,
         name: botData.name,
@@ -86,7 +86,7 @@ async function createBot(botData) {
         instagramPageId: botData.instagramPageId || null,
         instagramAccessToken: botData.instagramAccessToken ? safeEncrypt(botData.instagramAccessToken) : null
     };
-    
+
     await db.query(`
         INSERT INTO bots (
             id, name, "openaiApiKey", model, "maxTokens", temperature, "systemPrompt",
@@ -124,7 +124,7 @@ async function createBot(botData) {
             await addBotQA(bot.id, item.question, item.answer, item.id);
         }
     }
-    
+
     return bot;
 }
 
@@ -141,12 +141,12 @@ async function addBotQA(botId, question, answer, id = null) {
     const db = getDatabase();
     const qaId = id || `qa_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const createdAt = new Date().toISOString();
-    
+
     await db.query(`
         INSERT INTO bot_qa (id, "botId", question, answer, "createdAt")
         VALUES ($1, $2, $3, $4, $5)
     `, [qaId, botId, question, answer, createdAt]);
-    
+
     return { id: qaId, botId, question, answer, createdAt };
 }
 
@@ -174,11 +174,11 @@ async function updateBot(botId, updates) {
     if (!existing) {
         throw new Error('Bot não encontrado');
     }
-    
+
     const fields = [];
     const values = [];
     let count = 1;
-    
+
     if (updates.name !== undefined) { fields.push(`name = $${count++}`); values.push(updates.name); }
     if (updates.openaiApiKey !== undefined) { fields.push(`"openaiApiKey" = $${count++}`); values.push(encrypt(updates.openaiApiKey)); }
     if (updates.model !== undefined) { fields.push(`model = $${count++}`); values.push(updates.model); }
@@ -203,25 +203,25 @@ async function updateBot(botId, updates) {
     if (updates.openaiVectorStoreId !== undefined) { fields.push(`"openaiVectorStoreId" = $${count++}`); values.push(updates.openaiVectorStoreId); }
     if (updates.companyId !== undefined) { fields.push(`"companyId" = $${count++}`); values.push(updates.companyId); }
     if (updates.channel !== undefined) { fields.push(`channel = $${count++}`); values.push(updates.channel); }
-    if (updates.telegramToken !== undefined) { 
-        fields.push(`"telegramToken" = $${count++}`); 
-        values.push(updates.telegramToken ? safeEncrypt(updates.telegramToken) : null); 
+    if (updates.telegramToken !== undefined) {
+        fields.push(`"telegramToken" = $${count++}`);
+        values.push(updates.telegramToken ? safeEncrypt(updates.telegramToken) : null);
     }
     if (updates.instagramPageId !== undefined) { fields.push(`"instagramPageId" = $${count++}`); values.push(updates.instagramPageId); }
     if (updates.instagramAccountId !== undefined) { fields.push(`"instagramAccountId" = $${count++}`); values.push(updates.instagramAccountId); }
-    if (updates.instagramAccessToken !== undefined) { 
-        fields.push(`"instagramAccessToken" = $${count++}`); 
-        values.push(updates.instagramAccessToken ? safeEncrypt(updates.instagramAccessToken) : null); 
+    if (updates.instagramAccessToken !== undefined) {
+        fields.push(`"instagramAccessToken" = $${count++}`);
+        values.push(updates.instagramAccessToken ? safeEncrypt(updates.instagramAccessToken) : null);
     }
-    
+
     if (fields.length === 0) {
         return await getBot(botId);
     }
-    
+
     values.push(botId);
     const sql = `UPDATE bots SET ${fields.join(', ')} WHERE id = $${count}`;
     await db.query(sql, values);
-    
+
     return await getBot(botId);
 }
 
@@ -230,13 +230,13 @@ async function updateBot(botId, updates) {
  */
 async function deleteBot(botId) {
     const db = getDatabase();
-    
+
     try {
         // Limpar dependências para evitar erro de Foreign Key
-        await db.query('DELETE FROM messages WHERE botid = $1', [botId]).catch(() => {});
-        await db.query('DELETE FROM chats WHERE "botId" = $1', [botId]).catch(() => {});
-        await db.query('DELETE FROM contacts WHERE "botId" = $1', [botId]).catch(() => {});
-        await db.query('DELETE FROM bot_qa WHERE "botId" = $1', [botId]).catch(() => {});
+        await db.query('DELETE FROM messages WHERE botid = $1', [botId]).catch(() => { });
+        await db.query('DELETE FROM chats WHERE "botId" = $1', [botId]).catch(() => { });
+        await db.query('DELETE FROM contacts WHERE "botId" = $1', [botId]).catch(() => { });
+        await db.query('DELETE FROM bot_qa WHERE "botId" = $1', [botId]).catch(() => { });
     } catch (e) {
         console.error('Erro ao limpar dependências do bot:', e);
     }

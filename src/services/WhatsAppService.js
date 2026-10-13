@@ -1987,8 +1987,10 @@ class WhatsAppService {
     async generateChatResponse(text, userId, customPrompt = null) {
         try {
             let sessionStartTime = null;
-            if (db) {
-                try {
+            try {
+                const { getDatabase } = require('./DatabaseService');
+                const db = getDatabase();
+                if (db) {
                     const { getContactJidVariants } = require('../utils/helpers');
                     const { jidList } = getContactJidVariants(userId);
                     const chatRes = await db.query(
@@ -1998,8 +2000,8 @@ class WhatsAppService {
                     if (chatRes.rows.length > 0 && chatRes.rows[0].createdAt) {
                         sessionStartTime = chatRes.rows[0].createdAt;
                     }
-                } catch (e) { }
-            }
+                }
+            } catch (e) { }
 
             const history = await HistoryService.getHistory(this.botId, userId, 6, sessionStartTime);
 

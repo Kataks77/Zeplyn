@@ -61,7 +61,8 @@ class WallboardController {
                     u.department, 
                     u."companyId",
                     COALESCE(u."isAvailable", TRUE) as "isAvailable",
-                    COUNT(ch.id) FILTER (WHERE ch.status = 'attending') as "activeChatsCount"
+                    COUNT(ch.id) FILTER (WHERE ch.status = 'attending') as "activeChatsCount",
+                    COUNT(ch.id) FILTER (WHERE ch.status = 'finished') as "finishedChatsCount"
                 FROM users u
                 LEFT JOIN chats ch ON u.id = ch."attendantId"
                 WHERE u."isActive" = TRUE
@@ -83,6 +84,7 @@ class WallboardController {
             const attendants = attendantsRes.rows.map(att => {
                 const isOnline = UserPresenceService.isUserOnline(att.id);
                 const activeCount = parseInt(att.activeChatsCount, 10) || 0;
+                const finishedCount = parseInt(att.finishedChatsCount, 10) || 0;
 
                 let liveStatus = 'offline';
                 if (isOnline) {
@@ -106,7 +108,8 @@ class WallboardController {
                     isAvailable: att.isAvailable,
                     isOnline,
                     liveStatus,
-                    activeChatsCount: activeCount
+                    activeChatsCount: activeCount,
+                    finishedChatsCount: finishedCount
                 };
             });
 

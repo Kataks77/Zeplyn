@@ -228,6 +228,8 @@ class ChatService {
 
             let chatData = null;
 
+            let contactNameClean = finalContactName;
+
             if (res.rows.length > 0) {
                 const existingChat = res.rows[0];
                 const existingHasValidName = isValidContactName(existingChat.contactName);
@@ -247,7 +249,7 @@ class ChatService {
                     finalProfilePicUrl = existingChat.profilePicUrl;
                 }
 
-                const contactNameClean = finalContactName;
+                contactNameClean = finalContactName;
                 const isFinishedChat = existingChat.status === 'finished';
                 const isClientIncoming = status === 'waiting';
                 const shouldStartNewSession = isNewSession || (isFinishedChat && isClientIncoming);
@@ -312,6 +314,12 @@ class ChatService {
                     } catch (resetErr) { }
                 }
             } else {
+                if (!isValidContactName(contactNameClean)) {
+                    contactNameClean = canonicalJid.endsWith('@instagram')
+                        ? `Instagram @${cleanPhone.slice(-6)}`
+                        : (canonicalJid.endsWith('@telegram') ? `Telegram @${cleanPhone.slice(-6)}` : `Contato ${cleanPhone}`);
+                }
+
                 // Insere novo chat como "Aguardando" por padrão com protocolo inicial
                 const chatId = isOmnichannel 
                     ? `chat_${botId}_${canonicalJid.replace(/[@.]/g, '_')}` 

@@ -1,6 +1,6 @@
 // Utilitário de criptografia AES-256-CBC nativo via Web Crypto API (ponta a ponta com o backend)
 
-const ENCRYPTION_KEY = import.meta.env?.VITE_ENCRYPTION_KEY || '44236bbd6e32b83f3287a53b6babb594';
+const ENCRYPTION_KEY = import.meta.env?.VITE_ENCRYPTION_KEY || 'zeplyn-default-secret-key-32';
 
 let cachedGcmKey = null;
 let cachedCbcKey = null;

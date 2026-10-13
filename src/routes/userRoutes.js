@@ -16,7 +16,8 @@ router.get('/attendants', authenticateRequest, async (req, res) => {
             SELECT u.id, u.name, u.email, u.role, u."jobRoleName", u.department, u."companyId",
                    COALESCE(u."isAvailable", TRUE) as "isAvailable",
                    c.name as "companyName",
-                   COUNT(ch.id) FILTER (WHERE ch.status = 'attending') as "activeChatsCount"
+                   COUNT(ch.id) FILTER (WHERE ch.status = 'attending') as "activeChatsCount",
+                   COUNT(ch.id) FILTER (WHERE ch.status = 'finished') as "finishedChatsCount"
             FROM users u
             LEFT JOIN companies c ON u."companyId" = c.id
             LEFT JOIN chats ch ON u.id = ch."attendantId"
@@ -32,7 +33,30 @@ router.get('/attendants', authenticateRequest, async (req, res) => {
             ORDER BY u.name ASC
         `;
         const result = await db.query(sql, params);
-        res.json(result.rows);
+        const UserPresenceService = require('../services/UserPresenceService');
+        const attendants = result.rows.map(att => {
+            const isOnline = UserPresenceService.isUserOnline(att.id);
+            const activeCount = parseInt(att.activeChatsCount, 10) || 0;
+            const finishedCount = parseInt(att.finishedChatsCount, 10) || 0;
+            let liveStatus = 'offline';
+            if (isOnline) {
+                if (!att.isAvailable) {
+                    liveStatus = 'paused';
+                } else if (activeCount > 0) {
+                    liveStatus = 'busy';
+                } else {
+                    liveStatus = 'available';
+                }
+            }
+            return {
+                ...att,
+                isOnline,
+                liveStatus,
+                activeChatsCount: activeCount,
+                finishedChatsCount: finishedCount
+            };
+        });
+        res.json(attendants);
     } catch (err) {
         console.error('Erro ao listar atendentes para transferência:', err);
         res.status(500).json({ error: 'Erro ao listar atendentes' });
@@ -109,7 +133,7 @@ router.post('/', requireAdmin, async (req, res) => {
     try {
         const body = req.body || {};
         const { name, email, password, phoneNumber, isActive, jobRoleId, jobRoleName, department } = body;
-        
+
         if (!name || !email || !password) {
             return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
         }
@@ -152,17 +176,17 @@ router.post('/', requireAdmin, async (req, res) => {
             description: `Cadastrou o usuário ${name} (${email}) com o cargo ${role}`,
             category: 'users',
             details: { userId: newUser.id, name, email, role, companyId }
-        }).catch(() => {});
+        }).catch(() => { });
 
         res.status(201).json(userWithoutPassword);
     } catch (err) {
         console.error('Erro ao criar usuário:', err);
         const msg = err.message || '';
-        const isClientError = msg.includes('obrigat') || 
-                              msg.includes('inválid') || 
-                              msg.includes('caracteres') || 
-                              msg.includes('já está em uso') || 
-                              msg.includes('não existe');
+        const isClientError = msg.includes('obrigat') ||
+            msg.includes('inválid') ||
+            msg.includes('caracteres') ||
+            msg.includes('já está em uso') ||
+            msg.includes('não existe');
         res.status(isClientError ? 400 : 500).json({ error: msg || 'Erro ao criar usuário' });
     }
 });
@@ -202,18 +226,18 @@ router.put('/:userId', requireAdmin, async (req, res) => {
             description: `Atualizou os dados do usuário ${userToUpdate.name} (${userToUpdate.email})`,
             category: 'users',
             details: { userId: req.params.userId, name: userToUpdate.name, updatedFields: Object.keys(updates) }
-        }).catch(() => {});
+        }).catch(() => { });
 
         res.json(userWithoutPassword);
     } catch (err) {
         console.error(`Erro ao atualizar usuário ${req.params.userId}:`, err);
         const msg = err.message || '';
         const isForbidden = msg.includes('Não é permitido');
-        const isClientError = msg.includes('obrigat') || 
-                              msg.includes('inválid') || 
-                              msg.includes('caracteres') || 
-                              msg.includes('já está em uso') || 
-                              msg.includes('não existe');
+        const isClientError = msg.includes('obrigat') ||
+            msg.includes('inválid') ||
+            msg.includes('caracteres') ||
+            msg.includes('já está em uso') ||
+            msg.includes('não existe');
         res.status(isForbidden ? 403 : (isClientError ? 400 : 500)).json({ error: msg || 'Erro ao atualizar usuário' });
     }
 });
@@ -248,7 +272,7 @@ router.delete('/:userId', requireAdmin, async (req, res) => {
             description: `Excluiu o usuário ${userToDelete.name} (${userToDelete.email})`,
             category: 'users',
             details: { userId: req.params.userId, name: userToDelete.name, email: userToDelete.email }
-        }).catch(() => {});
+        }).catch(() => { });
 
         res.json({ success: true, message: 'Usuário excluído com sucesso' });
     } catch (err) {

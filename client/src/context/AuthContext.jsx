@@ -37,12 +37,19 @@ export function AuthProvider({ children }) {
       setSocketOnline(Boolean(e.detail.connected));
     };
 
+    const handleLocalUserUpdated = (e) => {
+      if (e.detail) {
+        setUser(e.detail);
+      }
+    };
+
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     window.addEventListener('socket:status', handleSocketStatus);
+    window.addEventListener('auth:user_updated', handleLocalUserUpdated);
 
     // Escuta atualização de permissões do usuário em tempo real
     const cleanupUserPerms = socketService.on('user_permissions_updated', (data) => {
-      if (data?.userId === user?.id) {
+      if (String(data?.userId) === String(user?.id)) {
         setUser(prev => {
           if (!prev) return prev;
           const updated = { ...prev, allowedScreens: data.allowedScreens };
@@ -60,7 +67,7 @@ export function AuthProvider({ children }) {
 
     // Escuta atualização de permissões da empresa em tempo real
     const cleanupCompanyPerms = socketService.on('company_permissions_updated', (data) => {
-      if (data?.companyId === user?.companyId) {
+      if (String(data?.companyId) === String(user?.companyId)) {
         setUser(prev => {
           if (!prev) return prev;
           const updated = { ...prev, companyAllowedScreens: data.allowedScreens };
@@ -76,9 +83,37 @@ export function AuthProvider({ children }) {
       }
     });
 
+    // Escuta alteração de status ativo/inativo da empresa em tempo real
+    const cleanupCompStatus = socketService.on('company_status_changed', (data) => {
+      if (!data?.companyId) return;
+      if (String(data.companyId) === String(user?.companyId)) {
+        const isSuspended = data.suspended || data.isActive === false;
+        setUser(prev => {
+          if (!prev) return prev;
+          const updated = { ...prev, companyIsActive: !isSuspended };
+          setStoredUser(updated);
+          return updated;
+        });
+      }
+    });
+
+    // Escuta alteração de status ativo/inativo do usuário em tempo real
+    const cleanupUserStatus = socketService.on('user_status_changed', (data) => {
+      if (!data?.userId) return;
+      if (String(data.userId) === String(user?.id)) {
+        const isSuspended = data.suspended || data.isActive === false;
+        setUser(prev => {
+          if (!prev) return prev;
+          const updated = { ...prev, isActive: !isSuspended };
+          setStoredUser(updated);
+          return updated;
+        });
+      }
+    });
+
     // Escuta alteração de status de disponibilidade para atendimento (Disponível vs Pausado)
     const cleanupAvailability = socketService.on('user:availability-changed', (data) => {
-      if (data?.userId === user?.id) {
+      if (String(data?.userId) === String(user?.id)) {
         setUser(prev => {
           if (!prev) return prev;
           const updated = { ...prev, isAvailable: data.isAvailable !== false };
@@ -91,6 +126,18 @@ export function AuthProvider({ children }) {
     if (token) {
       socketService.connect(token);
       setSocketOnline(Boolean(socketService.isConnected));
+
+      // Sincroniza dados e permissões atualizadas do usuário diretamente com o banco de dados
+      api.getMe()
+        .then(res => {
+          if (res?.user) {
+            setUser(res.user);
+            setStoredUser(res.user);
+          }
+        })
+        .catch(err => {
+          console.warn('Aviso ao sincronizar perfil do usuário:', err?.message);
+        });
     } else {
       socketService.disconnect();
       setSocketOnline(false);
@@ -101,8 +148,11 @@ export function AuthProvider({ children }) {
     return () => {
       window.removeEventListener('auth:unauthorized', handleUnauthorized);
       window.removeEventListener('socket:status', handleSocketStatus);
+      window.removeEventListener('auth:user_updated', handleLocalUserUpdated);
       if (typeof cleanupUserPerms === 'function') cleanupUserPerms();
       if (typeof cleanupCompanyPerms === 'function') cleanupCompanyPerms();
+      if (typeof cleanupCompStatus === 'function') cleanupCompStatus();
+      if (typeof cleanupUserStatus === 'function') cleanupUserStatus();
       if (typeof cleanupAvailability === 'function') cleanupAvailability();
     };
   }, [token, user?.id, user?.companyId]);

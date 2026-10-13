@@ -2,7 +2,7 @@ const crypto = require('crypto');
 
 // A chave de criptografia de segredos do banco de dados (OpenAI, Groq, Telegram, Instagram)
 // NUNCA deve ser compartilhada com o frontend nem exposta no bundle Vite.
-const DATABASE_ENCRYPTION_KEY = process.env.DATABASE_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || 'zeplyn-default-secret-key-32'; 
+const DATABASE_ENCRYPTION_KEY = process.env.DATABASE_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || 'zeplyn-default-secret-key-32';
 const ENCRYPTION_KEY = DATABASE_ENCRYPTION_KEY;
 
 // Chave compartilhada para criptografia de payloads da API HTTP com o frontend
@@ -26,13 +26,7 @@ if (process.env.NODE_ENV === 'production') {
 
 function getKeyBuffer(customKey = null) {
     const rawKey = customKey || DATABASE_ENCRYPTION_KEY;
-    const buf = Buffer.alloc(32);
-    if (typeof rawKey === 'string') {
-        buf.set(Buffer.from(rawKey, 'utf8').subarray(0, 32));
-    } else if (Buffer.isBuffer(rawKey)) {
-        buf.set(rawKey.subarray(0, 32));
-    }
-    return buf;
+    return Buffer.alloc(32, rawKey).subarray(0, 32);
 }
 
 /**

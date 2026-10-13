@@ -37,6 +37,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [initialChatTarget, setInitialChatTarget] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [suspendedInfo, setSuspendedInfo] = useState(null);
   const [globalToast, setGlobalToast] = useState(null);
   const [showNotifBanner, setShowNotifBanner] = useState(() => {
@@ -263,16 +264,32 @@ export default function App() {
   }
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+      {/* Backdrop para menu lateral em dispositivos móveis */}
+      {mobileSidebarOpen && (
+        <div 
+          className="mobile-sidebar-backdrop" 
+          onClick={() => setMobileSidebarOpen(false)} 
+        />
+      )}
+
       <Sidebar 
         currentView={currentView}
-        setCurrentView={setCurrentView}
+        setCurrentView={(view) => {
+          setCurrentView(view);
+          setMobileSidebarOpen(false);
+        }}
         collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
+        mobileOpen={mobileSidebarOpen}
+        setMobileOpen={setMobileSidebarOpen}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <Header currentViewTitle={titles[currentView] || 'Zeplyn'} />
+        <Header 
+          currentViewTitle={titles[currentView] || 'Zeplyn'} 
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+        />
 
         {showNotifBanner && (
           <div 

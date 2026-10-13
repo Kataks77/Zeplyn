@@ -157,7 +157,7 @@ function rateLimitMiddleware(maxRequests = 100, windowMs = 60000, message = 'Mui
                     if (decoded && (decoded.userId || decoded.id)) {
                         authId = decoded.userId || decoded.id;
                     }
-                } catch (_) {}
+                } catch (_) { }
             }
 
             if (authId) {
@@ -338,7 +338,7 @@ const gcInterval = setInterval(async () => {
     try {
         const db = getDatabase();
         await db.query('DELETE FROM revoked_tokens WHERE "expiresAt" <= $1', [now]);
-    } catch (err) {}
+    } catch (err) { }
 }, 60000);
 if (gcInterval.unref) gcInterval.unref();
 
@@ -422,14 +422,8 @@ async function authorizeMediaAccess(req, res, next) {
     const filename = path.basename(req.path || '');
     const ext = path.extname(filename).toLowerCase();
 
-    // 1. Assets públicos da interface e mídias de chat (imagens, figurinhas, áudios, vídeos, documentos)
-    const ALLOWED_MEDIA_EXTS = [
-        '.webp', '.jpg', '.jpeg', '.png', '.gif', '.svg',
-        '.ogg', '.oga', '.mp3', '.wav', '.m4a', '.opus',
-        '.mp4', '.webm',
-        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt'
-    ];
-    if (ALLOWED_MEDIA_EXTS.includes(ext)) {
+    // 1. Assets públicos da interface (figurinhas personalizadas/stickers públicos webp)
+    if (ext === '.webp' && (filename.includes('stk_') || filename.startsWith('usr_') || filename.startsWith('bot_'))) {
         return next();
     }
 
@@ -456,7 +450,7 @@ async function authorizeMediaAccess(req, res, next) {
                     return next();
                 }
             }
-        } catch (_) {}
+        } catch (_) { }
     }
 
     // 4. Bloqueia acesso não autorizado a mídias privadas (áudios, vídeos, documentos)
