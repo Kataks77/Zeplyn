@@ -1,0 +1,31 @@
+# Dependências
+node_modules/
+client/node_modules/
+
+# Builds e Distribuição
+client/dist/
+dist/
+
+# Variáveis de ambiente sensíveis (NUNCA comitar)
+.env
+.env.*
+!.env.example
+
+# Sessões do WhatsApp e dados confidenciais
+auth_info/
+bot-configs/
+uploads/
+extracted_texts/
+qa_files/
+temp/
+temp_audio/
+
+# Backups e pacotes
+*.tar.gz
+*.tar
+*.zip
+*.log
+
+# Arquivos de Sistema
+.DS_Store
+Thumbs.db

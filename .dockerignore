@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+temp
+temp_audio
+uploads/*
+!uploads/.gitkeep
+auth_info/*
+!auth_info/.gitkeep
+dist
+build
+.DS_Store
+*.log

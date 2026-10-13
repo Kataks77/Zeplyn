@@ -1,0 +1,19 @@
+{
+    "ignore": [
+        "auth_info",
+        "bot-configs",
+        "extracted_texts",
+        "qa_files",
+        "uploads",
+        "temp",
+        "temp_audio",
+        "last_openai_error.json",
+        "public",
+        "node_modules",
+        ".git"
+    ],
+    "watch": [
+        "src"
+    ],
+    "ext": "js,json"
+}
