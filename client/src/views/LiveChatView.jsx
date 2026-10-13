@@ -199,6 +199,10 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     chatsRef.current = chats;
   }, [chats]);
   const [selectedChat, setSelectedChat] = useState(null);
+  const selectedChatRef = useRef(selectedChat);
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+  }, [selectedChat]);
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [visibleMessageLimit, setVisibleMessageLimit] = useState(80);
@@ -1312,24 +1316,34 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
 
     const handleNewIncoming = (payload) => {
       loadChats();
+      loadQueueStats();
 
+      const activeChat = selectedChatRef.current || selectedChat;
       const isAssistant = payload.role === 'assistant' || payload.role === 'attendant';
-      const cleanIncoming = (payload.contactJid || payload.userId || '').replace(/[^0-9]/g, '');
-      const cleanCurrent = (selectedChat?.contactJid || '').replace(/[^0-9]/g, '');
+      const isInternalNote = payload.role === 'internal_note';
 
-      const isInstagramContact = Boolean((payload.contactJid || payload.userId || '').endsWith('@instagram') || selectedChat?.contactJid?.endsWith('@instagram'));
+      const incomingJid = payload.contactJid || payload.userId || '';
+      const currentJid = activeChat?.contactJid || '';
 
-      const isCurrentChat = Boolean(selectedChat && 
-        ((!payload.botId || payload.botId === selectedChat.botId || isInstagramContact) &&
-        (payload.contactJid === selectedChat.contactJid || 
-        payload.userId === selectedChat.contactJid || 
-        payload.chatId === selectedChat.id ||
-        (cleanIncoming && cleanCurrent && cleanIncoming === cleanCurrent) ||
-        (payload.contactId && selectedChat.contactJid?.includes(payload.contactId)))));
+      const isInstagramContact = Boolean(incomingJid.endsWith('@instagram') || currentJid.endsWith('@instagram'));
+      const isTelegramContact = Boolean(incomingJid.endsWith('@telegram') || currentJid.endsWith('@telegram'));
+
+      const isSamePhone = Boolean(
+        (incomingJid && currentJid && incomingJid === currentJid) ||
+        (payload.chatId && activeChat?.id && payload.chatId === activeChat.id) ||
+        (!isInstagramContact && !isTelegramContact && matchPhone(incomingJid, currentJid)) ||
+        (payload.contactId && currentJid && currentJid.includes(payload.contactId))
+      );
+
+      const isCurrentChat = Boolean(
+        activeChat &&
+        isSamePhone &&
+        (!payload.botId || !activeChat.botId || payload.botId === activeChat.botId || isInstagramContact || isTelegramContact)
+      );
 
       // Alertas sonoros e notificações em tempo real
-      if (!isAssistant && (payload.contactJid || payload.userId)) {
-        const isFromWaiting = payload.status === 'waiting' || (chatsRef.current && chatsRef.current.some(c => (c.contactJid === payload.contactJid || c.id === payload.chatId) && c.status === 'waiting'));
+      if (!isAssistant && !isInternalNote && incomingJid) {
+        const isFromWaiting = payload.status === 'waiting' || (chatsRef.current && chatsRef.current.some(c => (c.contactJid === incomingJid || c.id === payload.chatId) && c.status === 'waiting'));
         if (isFromWaiting) {
           desktopNotifications.playQueueAlert();
         } else {
@@ -1340,77 +1354,89 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
           desktopNotifications.notifyNewMessage({
             contactName: payload.contactName || payload.senderName || 'Cliente',
             message: payload.message || payload.content || 'Nova mensagem recebida',
-            contactJid: payload.contactJid || payload.userId,
+            contactJid: incomingJid,
             chatId: payload.chatId
           });
         }
       }
 
-      if (!selectedChat) return;
+      if (!activeChat || !isCurrentChat) return;
 
-      if (isCurrentChat) {
-        const isAssistant = payload.role === 'assistant' || payload.role === 'attendant';
-        const senderName = payload.senderName || (isAssistant ? (user?.name || 'Operador') : (payload.contactName || selectedChat.contactName));
-        const newMsg = {
-          id: payload.id || `ws_${Date.now()}_${Math.random()}`,
-          role: payload.role || (isAssistant ? 'assistant' : (payload.contactJid || payload.userId ? 'user' : 'assistant')),
-          content: payload.message || payload.content,
-          senderName: senderName,
-          timestamp: new Date(payload.timestamp || Date.now()).toISOString()
+      const senderName = payload.senderName || (isInternalNote ? (user?.name || 'Operador') : isAssistant ? (user?.name || 'Operador') : (payload.contactName || activeChat.contactName));
+      const newMsg = {
+        id: payload.id || `ws_${Date.now()}_${Math.random()}`,
+        role: payload.role || (isAssistant ? 'assistant' : (incomingJid ? 'user' : 'assistant')),
+        content: payload.message || payload.content,
+        senderName: senderName,
+        timestamp: new Date(payload.timestamp || Date.now()).toISOString()
+      };
+
+      setMessages(prev => {
+        // 1. Se já existe mensagem com o mesmo id, não duplica MAS atualiza se o conteúdo mudou
+        if (newMsg.id && prev.some(m => m.id === newMsg.id)) {
+          return prev.map(m => m.id === newMsg.id ? { ...m, ...newMsg, content: newMsg.content || m.content } : m);
+        }
+
+        // 2. Se for nota interna, substitui a nota otimista local correspondente
+        if (isInternalNote || newMsg.role === 'internal_note') {
+          const localNoteIdx = prev.findIndex(m => 
+            String(m.id).startsWith('local_note_') && 
+            (m.content === newMsg.content || (m.content && newMsg.content && m.content.trim() === newMsg.content.trim()))
+          );
+          if (localNoteIdx !== -1) {
+            const updated = [...prev];
+            updated[localNoteIdx] = newMsg;
+            return updated;
+          }
+        }
+
+        // Função auxiliar para extrair texto limpo sem prefixo de citação para match robusto
+        const getBaseText = (txt) => {
+          if (!txt || typeof txt !== 'string') return '';
+          let s = txt.trim();
+          if (s.startsWith('[Em resposta a: "')) {
+            const closeIdx = s.indexOf('"] ');
+            if (closeIdx !== -1) {
+              s = s.substring(closeIdx + 3).trim();
+            }
+          }
+          return s;
         };
-        setMessages(prev => {
-          // 1. Se já existe mensagem com o mesmo id, não duplica MAS atualiza se o conteúdo mudou
-          if (newMsg.id && prev.some(m => m.id === newMsg.id)) {
-            return prev.map(m => m.id === newMsg.id ? { ...m, ...newMsg, content: newMsg.content || m.content } : m);
+
+        // 3. Se for mensagem enviada (assistant/attendant), substitui mensagem local otimista pendente
+        if (isAssistant) {
+          const incomingBase = getBaseText(newMsg.content);
+          const localIdx = prev.findIndex(m => {
+            if (!String(m.id).startsWith('local_') || String(m.id).startsWith('local_note_')) return false;
+            if (m.content === newMsg.content) return true;
+            const localBase = getBaseText(m.content);
+            if (localBase && incomingBase && localBase === incomingBase) return true;
+            if (localBase && newMsg.content && newMsg.content.endsWith(localBase)) return true;
+            if (incomingBase && m.content && m.content.endsWith(incomingBase)) return true;
+            return false;
+          });
+
+          if (localIdx !== -1) {
+            const updated = [...prev];
+            updated[localIdx] = newMsg;
+            return updated;
           }
+        }
 
-          // Função auxiliar para extrair texto limpo sem prefixo de citação para match robusto
-          const getBaseText = (txt) => {
-            if (!txt || typeof txt !== 'string') return '';
-            let s = txt.trim();
-            if (s.startsWith('[Em resposta a: "')) {
-              const closeIdx = s.indexOf('"] ');
-              if (closeIdx !== -1) {
-                s = s.substring(closeIdx + 3).trim();
-              }
-            }
-            return s;
-          };
+        return [...prev, newMsg];
+      });
 
-          // 2. Se for mensagem enviada (assistant/attendant), substitui mensagem local otimista pendente
-          if (isAssistant) {
-            const incomingBase = getBaseText(newMsg.content);
-            const localIdx = prev.findIndex(m => {
-              if (!String(m.id).startsWith('local_') || String(m.id).startsWith('local_note_')) return false;
-              if (m.content === newMsg.content) return true;
-              const localBase = getBaseText(m.content);
-              if (localBase && incomingBase && localBase === incomingBase) return true;
-              if (localBase && newMsg.content && newMsg.content.endsWith(localBase)) return true;
-              if (incomingBase && m.content && m.content.endsWith(incomingBase)) return true;
-              return false;
-            });
-
-            if (localIdx !== -1) {
-              const updated = [...prev];
-              updated[localIdx] = newMsg;
-              return updated;
-            }
-          }
-
-          return [...prev, newMsg];
-        });
-        if (messagesContainerRef.current) {
-          const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-          const isScrolledUp = (scrollHeight - scrollTop - clientHeight) > 120;
-          if (isScrolledUp) {
-            setShowScrollBottom(true);
-            setUnreadCountWhileScrolled(prev => prev + 1);
-          } else {
-            scrollToBottom();
-          }
+      if (messagesContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+        const isScrolledUp = (scrollHeight - scrollTop - clientHeight) > 120;
+        if (isScrolledUp) {
+          setShowScrollBottom(true);
+          setUnreadCountWhileScrolled(prev => prev + 1);
         } else {
           scrollToBottom();
         }
+      } else {
+        scrollToBottom();
       }
     };
 
@@ -2073,12 +2099,20 @@ export default function LiveChatView({ initialChatTarget, onClearInitialChatTarg
     scrollToBottom();
 
     try {
-      await api.saveInternalNote({
+      const res = await api.saveInternalNote({
         botId: selectedChat.botId,
         contactJid: selectedChat.contactJid,
         chatId: selectedChat.id,
         note: textToSave
       });
+      if (res?.id) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === res.id)) {
+            return prev.filter(m => m.id !== tempId);
+          }
+          return prev.map(m => m.id === tempId ? { ...m, id: res.id } : m);
+        });
+      }
       loadChats();
       setAiToast({ type: 'success', text: 'Nota interna privada salva com sucesso!' });
       setTimeout(() => setAiToast(null), 3000);

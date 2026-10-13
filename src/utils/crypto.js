@@ -26,7 +26,13 @@ if (process.env.NODE_ENV === 'production') {
 
 function getKeyBuffer(customKey = null) {
     const rawKey = customKey || DATABASE_ENCRYPTION_KEY;
-    return Buffer.alloc(32, rawKey).subarray(0, 32);
+    const buf = Buffer.alloc(32);
+    if (typeof rawKey === 'string') {
+        buf.set(Buffer.from(rawKey, 'utf8').subarray(0, 32));
+    } else if (Buffer.isBuffer(rawKey)) {
+        buf.set(rawKey.subarray(0, 32));
+    }
+    return buf;
 }
 
 /**

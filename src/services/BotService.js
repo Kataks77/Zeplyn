@@ -5,7 +5,7 @@ function safeDecrypt(val) {
     if (!val || typeof val !== 'string') return null;
     let current = val;
     let rounds = 0;
-    while (current && typeof current === 'string' && current.startsWith('gcm:') && rounds < 5) {
+    while (current && typeof current === 'string' && current.includes(':') && rounds < 5) {
         const dec = decrypt(current);
         if (!dec || dec === current) break;
         current = dec;

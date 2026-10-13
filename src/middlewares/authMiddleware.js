@@ -422,8 +422,14 @@ async function authorizeMediaAccess(req, res, next) {
     const filename = path.basename(req.path || '');
     const ext = path.extname(filename).toLowerCase();
 
-    // 1. Assets públicos da interface (figurinhas personalizadas/stickers públicos webp)
-    if (ext === '.webp' && (filename.includes('stk_') || filename.startsWith('usr_') || filename.startsWith('bot_'))) {
+    // 1. Assets públicos da interface e mídias de chat (imagens, figurinhas, áudios, vídeos, documentos)
+    const ALLOWED_MEDIA_EXTS = [
+        '.webp', '.jpg', '.jpeg', '.png', '.gif', '.svg',
+        '.ogg', '.oga', '.mp3', '.wav', '.m4a', '.opus',
+        '.mp4', '.webm',
+        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.txt'
+    ];
+    if (ALLOWED_MEDIA_EXTS.includes(ext)) {
         return next();
     }
 
